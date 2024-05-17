@@ -1,5 +1,5 @@
 # cpu1-simulator
-My first custom CPU simulator. CPU1 is an imaginary 16-bit processor.
+My first custom CPU simulator. CPU1 is an imaginary 8-bit processor.
 
 # Introduction
 
@@ -10,6 +10,8 @@ I decided I wanted to integrate a graphical user interface (GUI) dashboard with 
 I added an extended instruction set as well as re-architected the memory and stack to make this more like an early microprocessor. The extended instruction set uses bit 4 as a flag to activate an extended instruction. Extended instructions may use additional bytes following the actual instruction byte to represent a memory address or value. I make use of goroutines and channels to enable live buttons to interact with the running CPU. Goroutines and channels help avoid blocking of the UI on long programs.
 
 ## Architecture description
+
+Replace with an 8-register CPU and a single 8-bit ALU. Simplify instruction set for manipulation of the ALU using logical operations, shifts, and loads/stores. Use BigEndian memory format.
 
 The CPU has 17 registers, special register `R0`, which serves as an accumulator, among other things, and 16 general purpose registers, referred to as `R1`-`R16` in this document. Programs are sequences of 8-bit bytes, each byte encoding a single instruction, together with its arguments. It is assumed that after completion, the results of a program are stored in `R0`. This simple CPU uses a stack that starts at the highest even memory location available and counts downward as items are pushed onto the stack. When a PUSH is executed, the SP is first decrements by 2, and then the low byte of the target is pushed onto the stack. Next, the SP is decremented and the high byte is pushed. The SP is left pointing to the high byte of the last item pushed onto the stack. This results in a "Big Endian" storage scheme with the most significant byte at the lowest memory address.
 

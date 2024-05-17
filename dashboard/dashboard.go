@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"strconv"
+	"time"
 
 	"chrisriddick.net/cpu1"
 	"fyne.io/fyne/v2"
@@ -37,6 +38,7 @@ var (
 	resetButton           *widget.Button
 	pauseButton           *widget.Button
 	exitButton            *widget.Button
+	currentTime           *widget.Label
 	mainContainer         *fyne.Container
 	buttonsContainer      *fyne.Container
 	settingsContainer     *fyne.Container
@@ -71,6 +73,9 @@ func New(cpu *cpu1.CPU, reset func(), load func(), step func(), run func(), paus
 	resetButton = widget.NewButton("Reset", reset)
 	pauseButton = widget.NewButton("Pause", pause)
 	exitButton = widget.NewButton("Exit", exit)
+
+	// Display time
+	currentTime = widget.NewLabel("")
 
 	// Clock settings line
 	inputCPUClock = widget.NewEntry()
@@ -157,6 +162,8 @@ func New(cpu *cpu1.CPU, reset func(), load func(), step func(), run func(), paus
 		stepButton,
 		pauseButton,
 		exitButton,
+		layout.NewSpacer(),
+		currentTime,
 	)
 
 	settingsContainer = container.NewVBox(
@@ -219,6 +226,11 @@ func UpdateAll() {
 	statusContainer.Refresh()
 	centerContainer.Refresh()
 	mainContainer.Refresh()
+}
+
+func UpdateTime() {
+	formatted := time.Now().Format("Time: 03:04:05")
+	currentTime.SetText(formatted)
 }
 
 func SetStatus(s string) {

@@ -110,6 +110,12 @@ func main() {
 
 	go clock()
 
+	// Run every second in background to update dashboard
+	go func() {
+		for range time.Tick(time.Second) {
+			dashboard.UpdateTime()
+		}
+	}()
 	// Activate dashboard process
 	w.ShowAndRun()
 
