@@ -56,8 +56,9 @@ var logger *log.Logger
 
 // CPU is the central structure representing the processor with its resources
 type CPU struct {
-	Registers [17]uint16
-	Labels    [16]uint16
+	Registers [8]uint16
+	QLines    byte // one byte to contain the 8 Q lines that can be SET and RESET
+	//	Labels    [16]uint16
 	PC        uint16 // Program counter
 	SP        uint16 // Stack pointer
 	Flag      bool   // Processor flag
@@ -123,19 +124,19 @@ func (c *CPU) FetchInstruction(code []byte) {
 		}
 		c.popRegFromStack(reg)
 		c.PC++
-	case MaskGoto: // GOTO
-		opt := instruction & 0x01
-		if opt == 1 { // R0 != 0
-			if c.Registers[0] != 0 {
-				c.PC = c.Labels[(instruction&0x1e)>>1]
-			}
-		} else { // R0 == 0
-			if c.Registers[0] == 0 {
-				c.PC = c.Labels[(instruction&0x1e)>>1]
-			}
-		}
-		c.PC++
-	case MaskLabel: // LABEL
+		// case MaskGoto: // GOTO
+		// 	opt := instruction & 0x01
+		// 	if opt == 1 { // R0 != 0
+		// 		if c.Registers[0] != 0 {
+		// 			c.PC = c.Labels[(instruction&0x1e)>>1]
+		// 		}
+		// 	} else { // R0 == 0
+		// 		if c.Registers[0] == 0 {
+		// 			c.PC = c.Labels[(instruction&0x1e)>>1]
+		// 		}
+		// 	}
+		// 	c.PC++
+		// case MaskLabel: // LABEL
 		break
 	}
 }
@@ -228,7 +229,7 @@ func (c *CPU) ProcessExtendedOpCode(instruction byte) {
 
 // Preprocess takes care of parsing labels to allow forward references in the
 // code
-func (c *CPU) Preprocess(code []byte, codeLength uint16) {
+/* func (c *CPU) Preprocess(code []byte, codeLength uint16) {
 	var i uint16
 	for i = 0; i < codeLength; i++ {
 		if code[i]&0xe0 == 0xe0 {
@@ -236,7 +237,7 @@ func (c *CPU) Preprocess(code []byte, codeLength uint16) {
 			c.Labels[label] = i + 1
 		}
 	}
-}
+} */
 
 func (c *CPU) Reset() {
 	c.PC = 0
@@ -245,10 +246,10 @@ func (c *CPU) Reset() {
 	for i := 0; i < len(c.Memory); i++ {
 		c.Memory[i] = 0
 	}
-	for i := 0; i < 16; i++ {
-		c.Labels[i] = 0
-	}
-	for i := 0; i < 17; i++ {
+	// for i := 0; i < 16; i++ {
+	// 	c.Labels[i] = 0
+	// }
+	for i := 0; i < len(c.Registers); i++ {
 		c.Registers[i] = 0
 	}
 }

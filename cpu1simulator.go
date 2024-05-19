@@ -125,7 +125,7 @@ func load() {
 	// Loads code in []program into CPU memory at index 0
 	cpu.Reset()
 	cpu.Load(program, len(program))
-	cpu.Preprocess(program, uint16(len(program)))
+	//	cpu.Preprocess(program, uint16(len(program)))
 	dashboard.SetStatus("Program loaded.")
 	dashboard.UpdateAll()
 	cpu.RunFlag = false
