@@ -22,3 +22,7 @@ go.work
 
 # Go module summary
 *.sum
+
+# Documentation files
+*.numbers
+*.pages

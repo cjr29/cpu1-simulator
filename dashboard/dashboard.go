@@ -6,13 +6,13 @@ import (
 	"strconv"
 	"time"
 
-	"chrisriddick.net/cpu1"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
+	"github.com/cjr29/cpu1-simulator/cpu1"
 )
 
 var (

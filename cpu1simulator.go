@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
-	"chrisriddick.net/cpu1"
-	"chrisriddick.net/dashboard"
 	"fyne.io/fyne/v2"
+	"github.com/cjr29/cpu1-simulator/cpu1"
+	"github.com/cjr29/cpu1-simulator/dashboard"
 )
 
 const (

@@ -1,10 +1,10 @@
-module chrisriddick.net/dashboard
+module github.com/cjr29/cpu1-simulator
 
 go 1.21.6
 
 require (
-	chrisriddick.net/cpu1 v0.0.0
 	fyne.io/fyne/v2 v2.4.5
+	github.com/cjr29/cpu1-simulator/cpu1 v0.0.0
 )
 
 require (
@@ -37,4 +37,4 @@ require (
 	honnef.co/go/js/dom v0.0.0-20210725211120-f030747120f2 // indirect
 )
 
-replace chrisriddick.net/cpu1 v0.0.0 => ../cpu1
+replace github.com/cjr29/cpu1-simulator/cpu1 v0.0.0 => ../cpu1
