@@ -29,9 +29,9 @@ import (
 
 	"github.com/beevik/cmd"
 	"github.com/cjr29/cpu1-simulator/asm"
+	"github.com/cjr29/cpu1-simulator/cpu1"
 	"github.com/cjr29/cpu1-simulator/disasm"
-	"github.com/cjr29/cpu1-term/term"
-	"github.com/cjr29/go6502/cpu"
+	"github.com/cjr29/cpu1-simulator/term"
 )
 
 type state byte

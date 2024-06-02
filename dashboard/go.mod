@@ -37,4 +37,3 @@ require (
 	honnef.co/go/js/dom v0.0.0-20210725211120-f030747120f2 // indirect
 )
 
-replace github.com/cjr29/cpu1-simulator/cpu1 v0.0.0 => ../cpu1
