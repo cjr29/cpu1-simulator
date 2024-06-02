@@ -25,8 +25,8 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-	"github.com/cjr29/go6502/cpu"
-	"github.com/cjr29/go6502/host"
+	"github.com/cjr29/cpu1-simulator/cpu1"
+	"github.com/cjr29/cpu1-simulator/host"
 )
 
 var (
@@ -84,8 +84,8 @@ func New(cpu *cpu.CPU, host *host.Host) (w fyne.Window, o *bytes.Buffer) {
 	c = cpu  // All data comes from the CPU structure object
 	h = host // Structure that manages the specific CPU implementation
 
-	a = app.NewWithID("6502")
-	w = a.NewWindow("6502 Simulator")
+	a = app.NewWithID("CPU1")
+	w = a.NewWindow("CPU1 Simulator")
 
 	// Color backgrounds to be used in container stacks
 	registerBackground := canvas.NewRectangle(color.RGBA{R: 173, G: 219, B: 156, A: 200})
@@ -193,7 +193,7 @@ func New(cpu *cpu.CPU, host *host.Host) (w fyne.Window, o *bytes.Buffer) {
 
 	w.SetContent(mainContainer)
 	consoleBuffer.Write([]byte("********************************************************************************\n" +
-		"******************************** 6502 Simulator ********************************\n" +
+		"******************************** CPU1 Simulator ********************************\n" +
 		"********************************************************************************\n"))
 	consoleContainer.Refresh()
 	UpdateAll()

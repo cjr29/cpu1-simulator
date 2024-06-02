@@ -85,15 +85,15 @@ type IoState struct {
 	rawMode bool
 }
 
-// New creates a new 6502 host environment.
+// New creates a new CPU1 host environment.
 func New() *Host {
-	logFile, err = os.OpenFile("6502Emu.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	logFile, err = os.OpenFile("CPU1.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatal("Failed to open log file:", err)
 	}
 	infoLogger = log.New(logFile, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 
-	//infoLogger.Println("***** Entered go6502.host.New()")
+	infoLogger.Println("***** Entered cpu1.host.New()")
 
 	console := struct {
 		io.Reader

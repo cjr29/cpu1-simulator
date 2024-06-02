@@ -33,11 +33,11 @@ var (
 )
 
 func init() {
-	/* 	logFile, err = os.OpenFile("6502Emu.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	   	if err != nil {
-	   		log.Fatal("Failed to open log file:", err)
-	   	}
-	   	infoLogger.Println("***** host.settings.init()") */
+	logFile, err = os.OpenFile("CPU1.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatal("Failed to open log file:", err)
+	}
+	infoLogger.Println("***** host.settings.init()")
 
 	// Initialize the startup parameters to be parsed in command line
 	flag.StringVar(&assemble, "a", "", "assemble file")
@@ -49,23 +49,23 @@ func init() {
 }
 
 func main() {
-	/* logFile, err = os.OpenFile("6502Emu.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	logFile, err = os.OpenFile("CPU1.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatal("Failed to open log file:", err)
-	} */
+	}
 
-	//infoLogger.Println("***** Entered go6502.main()")
+	infoLogger.Println("***** Entered main()")
 
 	// Create the host
-	//infoLogger.Println("***** Create the host")
+	infoLogger.Println("***** Create the host")
 	h = host.New()
 	defer h.Cleanup()
 
 	flag.Parse()
-	//infoLogger.Printf("GUI: %v, Assemble: %s", gui, assemble)
+	infoLogger.Printf("GUI: %v, Assemble: %s", gui, assemble)
 
 	// Create dashboard GUI
-	//infoLogger.Println("***** Open dashboard.")
+	infoLogger.Println("***** Open dashboard.")
 
 	// Set up Fyne window before trying to write to Status line!!!
 	w, outbuffer = dashboard.New(h.GetCPU(), h)
@@ -116,7 +116,7 @@ func main() {
 	// thread until the gui window is closed.
 
 	// Interactively run commands entered by the user.
-	//infoLogger.Println("***** Interactively run commands entered by the user.")
+	infoLogger.Println("***** Interactively run commands entered by the user.")
 	h.EnableRawMode()
 	h.RunCommands(true)
 }
