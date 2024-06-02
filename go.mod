@@ -1,6 +1,6 @@
-module github.com/cjr29/cpu1-simulator
+module main
 
-go 1.21.6
+go 1.22.3
 
 require (
 	fyne.io/fyne/v2 v2.4.5
@@ -42,5 +42,3 @@ require (
 replace github.com/cjr29/cpu1-simulator/cpu1 v0.0.0 => ./cpu1
 
 replace github.com/cjr29/cpu1-simulator/dashboard v0.0.0 => ./dashboard
-
-replace github.com/cjr29/go6502 v0.0.0 => ./go6502

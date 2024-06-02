@@ -7,6 +7,11 @@
 *.dll
 *.so
 *.dylib
+go6502
+*.bin
+*.map
+*.numbers
+*.pages
 
 # Test binary, built with `go test -c`
 *.test
@@ -23,6 +28,11 @@ go.work
 # Go module summary
 *.sum
 
-# Documentation files
-*.numbers
-*.pages
+# Logs
+*.log
+
+# Working folders
+/build
+
+# Scripts
+*.bash
