@@ -9,6 +9,23 @@ import (
 	"strings"
 )
 
+// Architecture selects the CPU chip: 6502 or 65c02
+type Architecture byte
+
+const (
+	// NMOS 6502 CPU
+	NMOS Architecture = iota
+
+	// CMOS 65c02 CPU
+	CMOS
+)
+
+// BrkHandler is an interface implemented by types that wish to be notified
+// when a BRK instruction is about to be executed.
+type BrkHandler interface {
+	OnBrk(cpu *CPU)
+}
+
 // The constants below are masks for corresponding machine instructions
 const (
 	MaskSet   = 0x00
@@ -39,8 +56,9 @@ var logger *log.Logger
 
 // CPU is the central structure representing the processor with its resources
 type CPU struct {
-	Registers [17]uint16
-	Labels    [16]uint16
+	Registers [8]uint16
+	QLines    byte // one byte to contain the 8 Q lines that can be SET and RESET
+	//	Labels    [16]uint16
 	PC        uint16 // Program counter
 	SP        uint16 // Stack pointer
 	Flag      bool   // Processor flag
@@ -106,19 +124,19 @@ func (c *CPU) FetchInstruction(code []byte) {
 		}
 		c.popRegFromStack(reg)
 		c.PC++
-	case MaskGoto: // GOTO
-		opt := instruction & 0x01
-		if opt == 1 { // R0 != 0
-			if c.Registers[0] != 0 {
-				c.PC = c.Labels[(instruction&0x1e)>>1]
-			}
-		} else { // R0 == 0
-			if c.Registers[0] == 0 {
-				c.PC = c.Labels[(instruction&0x1e)>>1]
-			}
-		}
-		c.PC++
-	case MaskLabel: // LABEL
+		// case MaskGoto: // GOTO
+		// 	opt := instruction & 0x01
+		// 	if opt == 1 { // R0 != 0
+		// 		if c.Registers[0] != 0 {
+		// 			c.PC = c.Labels[(instruction&0x1e)>>1]
+		// 		}
+		// 	} else { // R0 == 0
+		// 		if c.Registers[0] == 0 {
+		// 			c.PC = c.Labels[(instruction&0x1e)>>1]
+		// 		}
+		// 	}
+		// 	c.PC++
+		// case MaskLabel: // LABEL
 		break
 	}
 }
@@ -211,7 +229,7 @@ func (c *CPU) ProcessExtendedOpCode(instruction byte) {
 
 // Preprocess takes care of parsing labels to allow forward references in the
 // code
-func (c *CPU) Preprocess(code []byte, codeLength uint16) {
+/* func (c *CPU) Preprocess(code []byte, codeLength uint16) {
 	var i uint16
 	for i = 0; i < codeLength; i++ {
 		if code[i]&0xe0 == 0xe0 {
@@ -219,7 +237,7 @@ func (c *CPU) Preprocess(code []byte, codeLength uint16) {
 			c.Labels[label] = i + 1
 		}
 	}
-}
+} */
 
 func (c *CPU) Reset() {
 	c.PC = 0
@@ -228,10 +246,10 @@ func (c *CPU) Reset() {
 	for i := 0; i < len(c.Memory); i++ {
 		c.Memory[i] = 0
 	}
-	for i := 0; i < 16; i++ {
-		c.Labels[i] = 0
-	}
-	for i := 0; i < 17; i++ {
+	// for i := 0; i < 16; i++ {
+	// 	c.Labels[i] = 0
+	// }
+	for i := 0; i < len(c.Registers); i++ {
 		c.Registers[i] = 0
 	}
 }
@@ -441,4 +459,137 @@ func (c *CPU) popPCFromStack() {
 	c.PC = binary.LittleEndian.Uint16(c.Memory[c.SP:])
 	//logger.Printf("Popped from stack, PC = x%04x", c.PC)
 	c.SP = c.SP + 2
+}
+
+//========================== From Brett Vickers ==============================
+
+// Unused instruction (6502)
+func (cpu *CPU) unusedn(inst *Instruction, operand []byte) {
+	// Do nothing
+}
+
+// Unused instruction (65c02)
+func (cpu *CPU) unusedc(inst *Instruction, operand []byte) {
+	// Do nothing
+}
+
+//========================== New Opcodes =============================
+
+func (c *CPU) adi(inst *Instruction, operand []byte) {
+	// TBD
+}
+
+func (c *CPU) adic(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) adm(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) admc(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) adr(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) adrc(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) and(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) ani(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) call(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) cmp(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) dec(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) ex(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) halt(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) inc(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) lbrc(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) lbrq(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) ldi(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) ldm(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) nop(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) or(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) ori(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) pop(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) push(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) resetq(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) ret(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) setq(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) shl(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) shlc(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) shr(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) shrc(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) sti(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) sub(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) subc(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) subi(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) subic(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) subm(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) submc(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) xor(inst *Instruction, operand []byte) {
+	// TBD
+}
+func (c *CPU) xri(inst *Instruction, operand []byte) {
+	// TBD
 }

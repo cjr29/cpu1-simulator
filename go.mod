@@ -1,11 +1,11 @@
-module github.com/cjr29/cpu1-simulator
+module main
 
-go 1.21.6
+go 1.22.3
 
 require (
-	chrisriddick.net/cpu1 v0.0.0
-	chrisriddick.net/dashboard v0.0.0
 	fyne.io/fyne/v2 v2.4.5
+	github.com/cjr29/cpu1-simulator/cpu1 v0.0.0
+	github.com/cjr29/cpu1-simulator/dashboard v0.0.0
 )
 
 require (
@@ -36,8 +36,9 @@ require (
 	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/js/dom v0.0.0-20231112215516-51f43a291193 // indirect
+
 )
 
-replace chrisriddick.net/cpu1 v0.0.0 => ./cpu1
+replace github.com/cjr29/cpu1-simulator/cpu1 v0.0.0 => ./cpu1
 
-replace chrisriddick.net/dashboard v0.0.0 => ./dashboard
+replace github.com/cjr29/cpu1-simulator/dashboard v0.0.0 => ./dashboard
