@@ -25,9 +25,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-	"github.com/cjr29/cpu1-simulator/cpu1"
-	"github.com/cjr29/cpu1-simulator/host"
-)
+	"cpu")
 
 var (
 	c                     *cpu.CPU

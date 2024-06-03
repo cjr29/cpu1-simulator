@@ -10,10 +10,11 @@ import (
 	"os"
 	"time"
 
+	"asm"
+	"dashboard"
+	"host"
+
 	"fyne.io/fyne/v2"
-	"github.com/cjr29/cpu1-simulator/asm"
-	"github.com/cjr29/cpu1-simulator/dashboard"
-	"github.com/cjr29/cpu1-simulator/host"
 )
 
 const (

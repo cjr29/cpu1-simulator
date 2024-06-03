@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package asm implements a 6502 macro assembler.
+// Package asm implements a CPU1 macro assembler.
 package asm
 
 import (
@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/cjr29/go6502/cpu"
 )
 
 var (
@@ -23,8 +25,8 @@ var (
 )
 
 const (
-	binSignature       = "go65"
-	sourceMapSignature = "sm65"
+	binSignature       = "go1"
+	sourceMapSignature = "sm1"
 	versionMajor       = 0
 	versionMinor       = 1
 )

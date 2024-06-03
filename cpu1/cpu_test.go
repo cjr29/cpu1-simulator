@@ -5,10 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cjr29/cpu1-simulator/asm"
+	"asm"
+	"cpu"
 )
 
-func loadCPU(t *testing.T, asmString string) *cpu.CPU1 {
+func loadCPU(t *testing.T, asmString string) *cpu.CPU {
 	b := strings.NewReader(asmString)
 	r, sm, err := asm.Assemble(b, "test.asm", 0x1000, os.Stdout, 0)
 	if err != nil {

@@ -28,10 +28,11 @@ import (
 	"strings"
 
 	"github.com/beevik/cmd"
-	"github.com/cjr29/cpu1-simulator/asm"
 	"github.com/cjr29/cpu1-simulator/cpu1"
+	"github.com/cjr29/cpu1-simulator/asm"
 	"github.com/cjr29/cpu1-simulator/disasm"
 	"github.com/cjr29/cpu1-simulator/term"
+	"github.com/cjr29/cpu1-simulator/dashboard"
 )
 
 type state byte
@@ -93,7 +94,7 @@ func New() *Host {
 	}
 	infoLogger = log.New(logFile, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
 
-	infoLogger.Println("***** Entered cpu1.host.New()")
+	infoLogger.Println("***** Entered host.New()")
 
 	console := struct {
 		io.Reader

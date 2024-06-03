@@ -52,7 +52,7 @@ const (
 
 var logger *log.Logger
 
-// var errorLogger *log.Logger
+var errorLogger *log.Logger
 
 // CPU is the central structure representing the processor with its resources
 type CPU struct {
