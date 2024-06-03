@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	"riddick.net/cpu1-simulator/cpu1"
+	"github.com/cjr29/cpu1-simulator/cpu1"
 )
 
 var (
