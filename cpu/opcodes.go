@@ -5,7 +5,7 @@
 *	Adapted by Chris Riddick, 2024 for new instruction set
  */
 
-package cpu1
+package cpu
 
 import "strings"
 

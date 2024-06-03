@@ -1,12 +1,12 @@
-package cpu1_test
+package cpu
 
 import (
 	"os"
 	"strings"
 	"testing"
 
-	"asm"
-	"cpu"
+	"riddick.net/cpu1-simulator/asm"
+	"riddick.net/cpu1-simulator/cpu"
 )
 
 func loadCPU(t *testing.T, asmString string) *cpu.CPU {

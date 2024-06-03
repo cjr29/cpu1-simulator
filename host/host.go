@@ -28,11 +28,10 @@ import (
 	"strings"
 
 	"github.com/beevik/cmd"
-	"github.com/cjr29/cpu1-simulator/cpu1"
-	"github.com/cjr29/cpu1-simulator/asm"
-	"github.com/cjr29/cpu1-simulator/disasm"
-	"github.com/cjr29/cpu1-simulator/term"
-	"github.com/cjr29/cpu1-simulator/dashboard"
+	"riddick.net/cpu1-simulator/asm"
+	"riddick.net/cpu1-simulator/cpu"
+	"riddick.net/cpu1-simulator/disasm"
+	"riddick.net/cpu1-simulator/term"
 )
 
 type state byte

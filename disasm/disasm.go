@@ -9,6 +9,8 @@ package disasm
 import (
 	"fmt"
 	"strings"
+
+	"riddick.net/cpu1-simulator/cpu"
 )
 
 // Theme is a struct of color escape codes used to colorize the output

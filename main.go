@@ -10,9 +10,9 @@ import (
 	"os"
 	"time"
 
-	"asm"
-	"dashboard"
-	"host"
+	"riddick.net/cpu1-simulator/asm"
+	"riddick.net/cpu1-simulator/dashboard"
+	"riddick.net/cpu1-simulator/host"
 
 	"fyne.io/fyne/v2"
 )
