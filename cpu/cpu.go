@@ -1,12 +1,15 @@
+// Copyright 2014-2018 Brett Vickers. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// Package cpu implements a 6502 CPU instruction
+// set and emulator.
 package cpu
 
 import (
-	"encoding/binary"
 	"fmt"
 	"log"
 	"os"
-	"strconv"
-	"strings"
 )
 
 // Architecture selects the CPU chip: 6502 or 65c02
@@ -26,442 +29,898 @@ type BrkHandler interface {
 	OnBrk(cpu *CPU)
 }
 
-// The constants below are masks for corresponding machine instructions
-const (
-	MaskSet   = 0x00
-	MaskAdd   = 0x20
-	MaskSub   = 0x40
-	MaskMul   = 0x60
-	MaskPush  = 0x80
-	MaskPop   = 0xa0
-	MaskGoto  = 0xc0
-	MaskLabel = 0xe0
+// CPU represents a single 6502 CPU. It contains a pointer to the
+// memory associated with the CPU.
+type CPU struct {
+	Arch        Architecture    // CPU architecture
+	Reg         Registers       // CPU registers
+	Mem         Memory          // assigned memory
+	Cycles      uint64          // total executed CPU cycles
+	LastPC      uint16          // Previous program counter
+	InstSet     *InstructionSet // Instruction set used by the CPU
+	pageCrossed bool
+	deltaCycles int8
+	debugger    *Debugger
+	brkHandler  BrkHandler
+	storeByte   func(cpu *CPU, addr uint16, v byte)
+}
 
-	// Extended instrcution set
-	MaskExtended = 0x10
-	NOOP         = 0x10 // No operation, move to next PC
-	HALT         = 0x11 // Stop CPU execution at current PC
-	STORE        = 0x12 // Store contents of R0 at memory location addressed by next word (big endian)
-	LOAD         = 0x13 // Load R0 with word from memory location addressed by next word
-	SWAP         = 0x14 // Exchange contents of reg specified by hi nibble of next byte with reg by lo nibble
-	CALL         = 0x15 // Jump to subroutine at PC,PC++, pushing PC+2 onto stack
-	RET          = 0x16 // Return from subroutine, popping PC from stack
-	CMP          = 0x17 // Compare contents of R0 with contents of R1 and set CPU Flag to true if matched or false if not
-	XSET         = 0x18 // R0 <-- Set R0 to value in next two bytes (big endian)
+// Interrupt vectors
+const (
+	vectorNMI   = 0xfffa
+	vectorReset = 0xfffc
+	vectorIRQ   = 0xfffe
+	vectorBRK   = 0xfffe
 )
 
-var logger *log.Logger
+// NewCPU creates an emulated 6502 CPU bound to the specified memory.
+func NewCPU(arch Architecture, m Memory) *CPU {
+	LogFile, err := os.OpenFile("CPU1.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatal("Failed to open log file:", err)
+	}
+	infoLogger := log.New(LogFile, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+	infoLogger.Println("***** Entered cpu.NewCPU()")
 
-var errorLogger *log.Logger
+	cpu := &CPU{
+		Arch:      arch,
+		Mem:       m,
+		InstSet:   GetInstructionSet(arch),
+		storeByte: (*CPU).storeByteNormal,
+	}
 
-// CPU is the central structure representing the processor with its resources
-type CPU struct {
-	Registers [8]uint16
-	QLines    byte // one byte to contain the 8 Q lines that can be SET and RESET
-	//	Labels    [16]uint16
-	PC        uint16 // Program counter
-	SP        uint16 // Stack pointer
-	Flag      bool   // Processor flag
-	RunFlag   bool   // Tells cpuclock that it is active
-	Memory    []byte
-	StackHead uint16 // Starting index of stack in Memory array
-	StackSize uint16
-	Clock     float64     // clock delay in seconds. If = 0, full speed
-	CPUStatus chan string // Channel for passing status to monitor goroutines
+	cpu.Reg.Init()
+	return cpu
 }
 
-// FetchInstruction is a dispatcher function, which takes care of properly
-// interpreting bytes as instructions and carrying those out
-// The CPU control unit is the only thing that knows when an instruction is done
-// and, therefore, it should set the PC to the next location past the current instruction
-// when it is done. Fetch aslways assumes it is pointing at the next instruction.
-func (c *CPU) FetchInstruction(code []byte) {
-	instruction := code[c.PC]
-	// c.PC++
-	opt := instruction & MaskExtended
-	if opt == 0x10 {
-		// Handle extended instruction
-		// logger.Println("Extended instruction set op code. Handle it.")
-		c.ProcessExtendedOpCode(instruction)
+// SetPC updates the CPU program counter to 'addr'.
+func (cpu *CPU) SetPC(addr uint16) {
+	cpu.Reg.PC = addr
+}
+
+// GetInstruction returns the instruction opcode at the requested address.
+func (cpu *CPU) GetInstruction(addr uint16) *Instruction {
+	opcode := cpu.Mem.LoadByte(addr)
+	return cpu.InstSet.Lookup(opcode)
+}
+
+// NextAddr returns the address of the next instruction following the
+// instruction at addr.
+func (cpu *CPU) NextAddr(addr uint16) uint16 {
+	opcode := cpu.Mem.LoadByte(addr)
+	inst := cpu.InstSet.Lookup(opcode)
+	return addr + uint16(inst.Length)
+}
+
+// Step the cpu by one instruction.
+func (cpu *CPU) Step() {
+	// Grab the next opcode at the current PC
+	//log.Printf("CPU Step. PC = x%04x\n", cpu.Reg.PC)
+	opcode := cpu.Mem.LoadByte(cpu.Reg.PC)
+
+	// Look up the instruction data for the opcode
+	inst := cpu.InstSet.Lookup(opcode)
+
+	// If the instruction is undefined, reset the CPU (for now).
+	if inst.fn == nil {
+		cpu.reset()
 		return
 	}
-	// Not using Extended Instruction Set, Proceed with original instruction set
-	op := instruction & 0xe0
-	switch op {
-	case MaskSet: // SET
-		val := instruction & 0x1f
-		c.Registers[0] = uint16(val)
-		c.PC++
-	case MaskAdd: // ADD
-		reg := (instruction&0x1e)>>1 + 1
-		c.Registers[0] += c.Registers[reg]
-		c.PC++
-	case MaskSub: // SUB
-		reg := (instruction&0x1e)>>1 + 1
-		c.Registers[0] -= c.Registers[reg]
-		c.PC++
-	case MaskMul: // MUL
-		reg := (instruction&0x1e)>>1 + 1
-		c.Registers[0] *= c.Registers[reg]
-		c.PC++
-	case MaskPush: // PUSH
-		opt := instruction & 0x01
-		var reg byte
-		if opt == 1 {
-			reg = 0
-		} else {
-			reg = (instruction&0x1e)>>1 + 1
-		}
-		c.pushRegOnStack(reg)
-		c.PC++
-	case MaskPop: // POP
-		opt := instruction & 0x01
-		var reg byte
-		if opt == 1 {
-			reg = 0
-		} else {
-			reg = (instruction&0x1e)>>1 + 1
-		}
-		c.popRegFromStack(reg)
-		c.PC++
-		// case MaskGoto: // GOTO
-		// 	opt := instruction & 0x01
-		// 	if opt == 1 { // R0 != 0
-		// 		if c.Registers[0] != 0 {
-		// 			c.PC = c.Labels[(instruction&0x1e)>>1]
-		// 		}
-		// 	} else { // R0 == 0
-		// 		if c.Registers[0] == 0 {
-		// 			c.PC = c.Labels[(instruction&0x1e)>>1]
-		// 		}
-		// 	}
-		// 	c.PC++
-		// case MaskLabel: // LABEL
-		break
+
+	// If a BRK instruction is about to be executed and a BRK handler has been
+	// installed, call the BRK handler instead of executing the instruction.
+	if inst.Opcode == 0x00 && cpu.brkHandler != nil {
+		cpu.brkHandler.OnBrk(cpu)
+		return
+	}
+
+	// Fetch the operand (if any) and advance the PC
+	var buf [2]byte
+	operand := buf[:inst.Length-1]
+	cpu.Mem.LoadBytes(cpu.Reg.PC+1, operand)
+	cpu.LastPC = cpu.Reg.PC
+	cpu.Reg.PC += uint16(inst.Length)
+
+	// Execute the instruction
+	cpu.pageCrossed = false
+	cpu.deltaCycles = 0
+	inst.fn(cpu, inst, operand)
+
+	// Update the CPU cycle counter, with special-case logic
+	// to handle a page boundary crossing
+	cpu.Cycles += uint64(int8(inst.Cycles) + cpu.deltaCycles)
+	if cpu.pageCrossed {
+		cpu.Cycles += uint64(inst.BPCycles)
+	}
+
+	// Update the debugger so it handle breakpoints.
+	if cpu.debugger != nil {
+		cpu.debugger.onUpdatePC(cpu, cpu.Reg.PC)
 	}
 }
 
-func (c *CPU) ProcessExtendedOpCode(instruction byte) {
-	//logger.Println("ProcessExtendedOpCode")
-	op := instruction & 0x1f
-	//logger.Printf("OP: %02x", op)
-	switch op {
-	case HALT:
-		//logger.Println("HALT instruction")
-		c.CPUStatus <- "HALT instruction encountered."
-		c.RunFlag = false
-		c.PC++
-	case NOOP:
-		//logger.Println("NOOP instruction")
-		c.PC++
-	case STORE:
-		// Stores the two bytes of R0 at the location specified by the next two bytes from the PC
-		// Use Big-Endian for storing.
-		c.PC++ // First get the destination address
-		addr := binary.BigEndian.Uint16(c.Memory[c.PC:])
-		b := make([]byte, 2)
-		binary.BigEndian.PutUint16(b[0:], c.Registers[0])
-		// Push Hi byte
-		c.Memory[addr] = b[0]   // Hi byte
-		c.Memory[addr+1] = b[1] // Lo byte
-		c.PC = c.PC + 2         // Point to next instruction
-		// PC now points to next instruction
-		//logger.Println("STORE instruction")
-	case LOAD:
-		//logger.Println("LOAD instruction")
-		// Loads the two bytes starting at location addressed by next two bytes into R0
-		// PC currently points to next byte in memory
-		c.PC++ // Point to the operand
-		loc := binary.BigEndian.Uint16(c.Memory[c.PC:])
-		c.Registers[0] = binary.BigEndian.Uint16(c.Memory[loc:])
-		//logger.Printf("R0 = x%04x", c.Registers[0])
-		c.PC = c.PC + 2 // Point to next instruction
-		//logger.Printf("LOAD Memory address retrieved: x%04x, PC = x%04x", loc, c.PC)
-	case SWAP:
-		//logger.Println("SWAP instruction")
-		// Exchange the contents of Rx with Ry and vice versa
-		// Rx specified by hi nibble, Ry by lo nibble of next byte
-		//logger.Printf("SWAP: PC = x%04x", c.PC)
-		c.PC++
-		regs := c.Memory[c.PC]
-		//logger.Printf("SWAP: regs = x%02x", regs)
-		rx := regs >> 4
-		ry := regs & 0x0f
-		//logger.Printf("SWAP: rx=x%02x, ry=x%02x", rx, ry)
-		temp := c.Registers[rx]
-		c.Registers[rx] = c.Registers[ry]
-		c.Registers[ry] = temp
-		c.PC++ // Next instruction
-	case CALL:
-		//logger.Println("CALL instruction")
-		// Jump to subroutine at address pointed to by PC,PC++, pushing PC+2 onto stack
-		c.PC++                                                 // Point to the CALL operand
-		subroutine := binary.BigEndian.Uint16(c.Memory[c.PC:]) // Address of subroutine
-		c.PC = c.PC + 2                                        // Skip past operand
-		c.pushPCOnStack()                                      // Push the return address on the stack
-		c.PC = subroutine                                      // Jump to subroutine
-	case RET:
-		//logger.Println("RET instruction")
-		// Return from subroutine by popping the return address off the stack and setting PC to that value
-		c.popPCFromStack() // PC now points to the next instruction after returning
-	case CMP:
-		//logger.Println("CMP instruction")
-		// Compare contents of R0 with contents of R1 and set CPU Flag to true if matched or false if not
-		if c.Registers[0] == c.Registers[1] {
-			c.Flag = true
-		} else {
-			c.Flag = false
-		}
-		c.PC++ // Next instruction
-	case XSET:
-		//logger.Println("XSET instruction")
-		// Get next two bytes following this instruction in big endian and store in R0
-		c.PC++
-		rval := binary.BigEndian.Uint16(c.Memory[c.PC:])
-		c.Registers[0] = rval
-		// logger.Printf("Value retrieved at PC = x%04x", rval)
-		c.PC = c.PC + 2 // Point to next instruction
+// AttachBrkHandler attaches a handler that is called whenever the BRK
+// instruction is executed.
+func (cpu *CPU) AttachBrkHandler(handler BrkHandler) {
+	cpu.brkHandler = handler
+}
+
+// AttachDebugger attaches a debugger to the CPU. The debugger receives
+// notifications whenever the CPU executes an instruction or stores a byte
+// to memory.
+func (cpu *CPU) AttachDebugger(debugger *Debugger) {
+	cpu.debugger = debugger
+	cpu.storeByte = (*CPU).storeByteDebugger
+}
+
+// DetachDebugger detaches the currently debugger from the CPU.
+func (cpu *CPU) DetachDebugger() {
+	cpu.debugger = nil
+	cpu.storeByte = (*CPU).storeByteNormal
+}
+
+// Load a byte value from using the requested addressing mode
+// and the operand to determine where to load it from.
+func (cpu *CPU) load(mode Mode, operand []byte) byte {
+	switch mode {
+	case IMM:
+		return operand[0]
+	// case ZPG:
+	// 	zpaddr := operandToAddress(operand)
+	// 	return cpu.Mem.LoadByte(zpaddr)
+	// case ZPX:
+	// 	zpaddr := operandToAddress(operand)
+	// 	zpaddr = offsetZeroPage(zpaddr, cpu.Reg.X)
+	// 	return cpu.Mem.LoadByte(zpaddr)
+	// case ZPY:
+	// 	zpaddr := operandToAddress(operand)
+	// 	zpaddr = offsetZeroPage(zpaddr, cpu.Reg.Y)
+	// 	return cpu.Mem.LoadByte(zpaddr)
+	// case ABS:
+	// 	addr := operandToAddress(operand)
+	// 	return cpu.Mem.LoadByte(addr)
+	// case ABX:
+	// 	addr := operandToAddress(operand)
+	// 	addr, cpu.pageCrossed = offsetAddress(addr, cpu.Reg.X)
+	// 	return cpu.Mem.LoadByte(addr)
+	// case ABY:
+	// 	addr := operandToAddress(operand)
+	// 	addr, cpu.pageCrossed = offsetAddress(addr, cpu.Reg.Y)
+	// 	return cpu.Mem.LoadByte(addr)
+	// case IDX:
+	// 	zpaddr := operandToAddress(operand)
+	// 	zpaddr = offsetZeroPage(zpaddr, cpu.Reg.X)
+	// 	addr := cpu.Mem.LoadAddress(zpaddr)
+	// 	return cpu.Mem.LoadByte(addr)
+	// case IDY:
+	// 	zpaddr := operandToAddress(operand)
+	// 	addr := cpu.Mem.LoadAddress(zpaddr)
+	// 	addr, cpu.pageCrossed = offsetAddress(addr, cpu.Reg.Y)
+	// 	return cpu.Mem.LoadByte(addr)
+	// case ACC:
+	// 	return cpu.Reg.A
 	default:
-		//logger.Println("Undefined extended instruction, skipped.")
-		c.CPUStatus <- "Undefined extended instruction, execution halted."
+		panic("Invalid addressing mode")
 	}
 }
 
-// Preprocess takes care of parsing labels to allow forward references in the
-// code
-/* func (c *CPU) Preprocess(code []byte, codeLength uint16) {
-	var i uint16
-	for i = 0; i < codeLength; i++ {
-		if code[i]&0xe0 == 0xe0 {
-			label := (code[i] & 0x1e) >> 1
-			c.Labels[label] = i + 1
+// Load a 16-bit address value from memory using the requested addressing mode
+// and the 16-bit instruction operand.
+func (cpu *CPU) loadAddress(mode Mode, operand []byte) uint16 {
+	switch mode {
+	// case ABS:
+	// 	return operandToAddress(operand)
+	// case IND:
+	// 	addr := operandToAddress(operand)
+	// 	return cpu.Mem.LoadAddress(addr)
+	default:
+		panic("Invalid addressing mode")
+	}
+}
+
+// Store a byte value using the specified addressing mode and the
+// variable-sized instruction operand to determine where to store it.
+func (cpu *CPU) store(mode Mode, operand []byte, v byte) {
+	switch mode {
+	// case ZPG:
+	// 	zpaddr := operandToAddress(operand)
+	// 	cpu.storeByte(cpu, zpaddr, v)
+	// case ZPX:
+	// 	zpaddr := operandToAddress(operand)
+	// 	zpaddr = offsetZeroPage(zpaddr, cpu.Reg.X)
+	// 	cpu.storeByte(cpu, zpaddr, v)
+	// case ZPY:
+	// 	zpaddr := operandToAddress(operand)
+	// 	zpaddr = offsetZeroPage(zpaddr, cpu.Reg.Y)
+	// 	cpu.storeByte(cpu, zpaddr, v)
+	// case ABS:
+	// 	addr := operandToAddress(operand)
+	// 	cpu.storeByte(cpu, addr, v)
+	// case ABX:
+	// 	addr := operandToAddress(operand)
+	// 	addr, cpu.pageCrossed = offsetAddress(addr, cpu.Reg.X)
+	// 	cpu.storeByte(cpu, addr, v)
+	// case ABY:
+	// 	addr := operandToAddress(operand)
+	// 	addr, cpu.pageCrossed = offsetAddress(addr, cpu.Reg.Y)
+	// 	cpu.storeByte(cpu, addr, v)
+	// case IDX:
+	// 	zpaddr := operandToAddress(operand)
+	// 	zpaddr = offsetZeroPage(zpaddr, cpu.Reg.X)
+	// 	addr := cpu.Mem.LoadAddress(zpaddr)
+	// 	cpu.storeByte(cpu, addr, v)
+	// case IDY:
+	// 	zpaddr := operandToAddress(operand)
+	// 	addr := cpu.Mem.LoadAddress(zpaddr)
+	// 	addr, cpu.pageCrossed = offsetAddress(addr, cpu.Reg.Y)
+	// 	cpu.storeByte(cpu, addr, v)
+	// case ACC:
+	// 	cpu.Reg.A = v
+	default:
+		panic("Invalid addressing mode")
+	}
+}
+
+// Execute a branch using the instruction operand.
+func (cpu *CPU) branch(operand []byte) {
+	offset := operandToAddress(operand)
+	oldPC := cpu.Reg.PC
+	if offset < 0x80 {
+		cpu.Reg.PC += uint16(offset)
+	} else {
+		cpu.Reg.PC -= uint16(0x100 - offset)
+	}
+	cpu.deltaCycles++
+	if ((cpu.Reg.PC ^ oldPC) & 0xff00) != 0 {
+		cpu.deltaCycles++
+	}
+}
+
+// Store the byte value 'v' add the address 'addr'.
+func (cpu *CPU) storeByteNormal(addr uint16, v byte) {
+	cpu.Mem.StoreByte(addr, v)
+}
+
+// Store the byte value 'v' add the address 'addr'.
+func (cpu *CPU) storeByteDebugger(addr uint16, v byte) {
+	cpu.debugger.onDataStore(cpu, addr, v)
+	cpu.Mem.StoreByte(addr, v)
+}
+
+// Push the address 'addr' onto the stack.
+func (cpu *CPU) pushAddress(addr uint16) {
+	cpu.push(byte(addr >> 8))
+	cpu.push(byte(addr))
+}
+
+// Pop a 16-bit address off the stack.
+func (cpu *CPU) popAddress() uint16 {
+	lo := cpu.pop()
+	hi := cpu.pop()
+	return uint16(lo) | (uint16(hi) << 8)
+}
+
+// Update the Zero and Negative flags based on the value of 'v'.
+func (cpu *CPU) updateNZ(v byte) {
+	cpu.Reg.Zero = (v == 0)
+	cpu.Reg.Sign = ((v & 0x80) != 0)
+}
+
+// Handle a handleInterrupt by storing the program counter and status flags on
+// the stack. Then switch the program counter to the requested address.
+func (cpu *CPU) handleInterrupt(brk bool, addr uint16) {
+	cpu.pushAddress(cpu.Reg.PC)
+	cpu.push(cpu.Reg.SavePS(brk))
+
+	cpu.Reg.InterruptDisable = true
+	if cpu.Arch == CMOS {
+		cpu.Reg.Decimal = false
+	}
+
+	cpu.Reg.PC = cpu.Mem.LoadAddress(addr)
+}
+
+// Generate a maskable IRQ (hardware) interrupt request.
+func (cpu *CPU) irq() {
+	if !cpu.Reg.InterruptDisable {
+		cpu.handleInterrupt(false, vectorIRQ)
+	}
+}
+
+// Generate a non-maskable interrupt.
+func (cpu *CPU) nmi() {
+	cpu.handleInterrupt(false, vectorNMI)
+}
+
+// Generate a reset signal.
+func (cpu *CPU) reset() {
+	cpu.Reg.PC = cpu.Mem.LoadAddress(vectorReset)
+}
+
+// Add with carry (CMOS)
+func (cpu *CPU) adcc(inst *Instruction, operand []byte) {
+	acc := uint32(cpu.Reg.A)
+	add := uint32(cpu.load(inst.Mode, operand))
+	carry := boolToUint32(cpu.Reg.Carry)
+	var v uint32
+
+	cpu.Reg.Overflow = (((acc ^ add) & 0x80) == 0)
+
+	switch cpu.Reg.Decimal {
+	case true:
+		cpu.deltaCycles++
+
+		lo := (acc & 0x0f) + (add & 0x0f) + carry
+
+		var carrylo uint32
+		if lo >= 0x0a {
+			carrylo = 0x10
+			lo -= 0xa
 		}
-	}
-} */
 
-func (c *CPU) Reset() {
-	c.PC = 0
-	c.SP = c.StackHead + 2
-	c.Flag = false
-	for i := 0; i < len(c.Memory); i++ {
-		c.Memory[i] = 0
-	}
-	// for i := 0; i < 16; i++ {
-	// 	c.Labels[i] = 0
-	// }
-	for i := 0; i < len(c.Registers); i++ {
-		c.Registers[i] = 0
-	}
-}
+		hi := (acc & 0xf0) + (add & 0xf0) + carrylo
 
-// Be sure there is a program in memory
-func (c *CPU) VerifyProgramInMemory() bool {
-	// Be sure that a program has been loaded by testing  the first two bytes
-	if (c.Memory[0] == 0) && (c.Memory[1] == 0) {
-		return false
-	}
-	return true
-}
-
-// Load Memory with preprocessed program
-func (c *CPU) Load(program []byte, programLength int) {
-	for i := 0; i < programLength; i++ {
-		c.Memory[i] = program[i]
-	}
-}
-
-// Translate a symbolic instruction mnemonic into a byte
-func asmToByte(s string) byte {
-	//logger.Println("Asm: " + s)
-	parts := strings.Split(s, "_")
-	var b byte
-	switch parts[0] {
-	case "set":
-		i, _ := strconv.Atoi(parts[1])
-		b = MaskSet + byte(i)
-	case "add":
-		i, _ := strconv.Atoi(parts[1])
-		i = (i - 1) << 1
-		b = MaskAdd + byte(i)
-	case "sub":
-		i, _ := strconv.Atoi(parts[1])
-		i = (i - 1) << 1
-		b = MaskSub + byte(i)
-	case "mul":
-		i, _ := strconv.Atoi(parts[1])
-		i = (i - 1) << 1
-		b = MaskMul + byte(i)
-	case "push":
-		i, _ := strconv.Atoi(parts[1])
-		if i == 0 {
-			b = MaskPush + 0x01
+		if hi >= 0xa0 {
+			cpu.Reg.Carry = true
+			if hi >= 0x180 {
+				cpu.Reg.Overflow = false
+			}
+			hi -= 0xa0
 		} else {
-			i = (i - 1) << 1
-			b = MaskPush + byte(i)
+			cpu.Reg.Carry = false
+			if hi < 0x80 {
+				cpu.Reg.Overflow = false
+			}
 		}
-	case "pop":
-		i, _ := strconv.Atoi(parts[1])
-		if i == 0 {
-			b = MaskPop + 0x01
+
+		v = hi | lo
+
+	case false:
+		v = acc + add + carry
+		if v >= 0x100 {
+			cpu.Reg.Carry = true
+			if v >= 0x180 {
+				cpu.Reg.Overflow = false
+			}
 		} else {
-			i = (i - 1) << 1
-			b = MaskPop + byte(i)
+			cpu.Reg.Carry = false
+			if v < 0x80 {
+				cpu.Reg.Overflow = false
+			}
 		}
-	case "goto":
-		l, _ := strconv.Atoi(parts[1])
-		o, _ := strconv.Atoi(parts[2])
-		b = 0xc0 + byte((l<<1)+o)
-	case "label":
-		l, _ := strconv.Atoi(parts[1])
-		l = l << 1
-		b = 0xe0 + byte(l)
-	}
-	return b
-}
-
-// AsmCodeToBytes translates a full program from symbolic to machine form
-func AsmCodeToBytes(code []string) []byte {
-
-	bytes := make([]byte, len(code))
-	for i, asm := range code {
-		bytes[i] = asmToByte(asm)
 	}
 
-	return bytes
+	cpu.Reg.A = byte(v)
+	cpu.updateNZ(cpu.Reg.A)
 }
 
-// GetMemory returns a 16 byte formatted string starting at provided index
-func (c *CPU) GetMemory(index uint16) string {
-	var line string
-	var i uint16
-	for i = index; i < index+16; i++ {
-		line = line + fmt.Sprintf("%02x ", c.Memory[i])
-	}
-	return line
-}
+// Add with carry (NMOS)
+func (cpu *CPU) adcn(inst *Instruction, operand []byte) {
+	acc := uint32(cpu.Reg.A)
+	add := uint32(cpu.load(inst.Mode, operand))
+	carry := boolToUint32(cpu.Reg.Carry)
+	var v uint32
 
-// GetAllMemory returns a 16 byte formatted string starting at 0000
-func (c *CPU) GetAllMemory() string {
-	var line string
-	blocks := len(c.Memory) / 16
-	remainder := len(c.Memory) % 16
-	// Send header line with memory locations
-	line = "       00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f\n"
-	k := 0
-	for j := 0; j < blocks; j++ {
-		line = line + fmt.Sprintf("%04x:  ", k)
-		for i := k; i < k+16; i++ {
-			line = line + fmt.Sprintf("%02x ", c.Memory[i])
+	switch cpu.Reg.Decimal {
+	case true:
+		lo := (acc & 0x0f) + (add & 0x0f) + carry
+
+		var carrylo uint32
+		if lo >= 0x0a {
+			carrylo = 0x10
+			lo -= 0x0a
 		}
-		line = line + "\n"
-		k = k + 16
+
+		hi := (acc & 0xf0) + (add & 0xf0) + carrylo
+
+		if hi >= 0xa0 {
+			cpu.Reg.Carry = true
+			hi -= 0xa0
+		} else {
+			cpu.Reg.Carry = false
+		}
+
+		v = hi | lo
+
+		cpu.Reg.Overflow = ((acc^v)&0x80) != 0 && ((acc^add)&0x80) == 0
+
+	case false:
+		v = acc + add + carry
+		cpu.Reg.Carry = (v >= 0x100)
+		cpu.Reg.Overflow = (((acc & 0x80) == (add & 0x80)) && ((acc & 0x80) != (v & 0x80)))
 	}
-	if k >= len(c.Memory) {
-		return line
+
+	cpu.Reg.A = byte(v)
+	cpu.updateNZ(cpu.Reg.A)
+}
+
+// Arithmetic Shift Left
+func (cpu *CPU) asl(inst *Instruction, operand []byte) {
+	v := cpu.load(inst.Mode, operand)
+	cpu.Reg.Carry = ((v & 0x80) == 0x80)
+	v = v << 1
+	cpu.updateNZ(v)
+	cpu.store(inst.Mode, operand, v)
+	if cpu.Arch == CMOS && inst.Mode == ABX && !cpu.pageCrossed {
+		cpu.deltaCycles--
 	}
-	endBlock := blocks * 16
-	line = line + fmt.Sprintf("%04x:  ", k)
-	for i := endBlock; i < endBlock+remainder; i++ {
-		line = line + fmt.Sprintf("%02x ", c.Memory[i])
+}
+
+// Branch if Carry Clear
+func (cpu *CPU) bcc(inst *Instruction, operand []byte) {
+	if !cpu.Reg.Carry {
+		cpu.branch(operand)
 	}
-	line = line + "\n"
-	return line
 }
 
-// GetStack returns a formatted string of 16 words (big-endian) beginning at SP down to Head
-func (c *CPU) GetStack() string {
-	var s string
-	for i := c.SP; i <= c.StackHead; i = i + 2 {
-		s = s + fmt.Sprintf("%04x: x%04x\n", i, binary.BigEndian.Uint16(c.Memory[i:]))
+// Branch if Carry Set
+func (cpu *CPU) bcs(inst *Instruction, operand []byte) {
+	if cpu.Reg.Carry {
+		cpu.branch(operand)
 	}
-	return s
 }
 
-// GetRegisters returns a formatted string of register values
-func (c *CPU) GetRegisters() string {
-	var s string
-	for i := 0; i < len(c.Registers); i++ {
-		s = s + fmt.Sprintf("R%02d: x%04x\n", i, c.Registers[i])
+// Branch if EQual (to zero)
+func (cpu *CPU) beq(inst *Instruction, operand []byte) {
+	if cpu.Reg.Zero {
+		cpu.branch(operand)
 	}
-	return s
 }
 
-// InitMemory expands Memory slice to specified size and initializes to all zeros
-func (c *CPU) InitMemory(size uint16) {
-	tempSlice := make([]byte, size)
-	var i uint16
-	for i = 1; i < size; i++ {
-		tempSlice[i] = 0
+// Bit Test
+func (cpu *CPU) bit(inst *Instruction, operand []byte) {
+	v := cpu.load(inst.Mode, operand)
+	cpu.Reg.Zero = ((v & cpu.Reg.A) == 0)
+	cpu.Reg.Sign = ((v & 0x80) != 0)
+	cpu.Reg.Overflow = ((v & 0x40) != 0)
+}
+
+// Branch if MInus (negative)
+func (cpu *CPU) bmi(inst *Instruction, operand []byte) {
+	if cpu.Reg.Sign {
+		cpu.branch(operand)
 	}
-	c.Memory = append(c.Memory, tempSlice...)
 }
 
-// InitStack initializes the SP to the specified address
-func (c *CPU) InitStack(loc uint16) {
-	head := loc
-	if head%2 != 0 {
-		head = head - 1
+// Branch if Not Equal (not zero)
+func (cpu *CPU) bne(inst *Instruction, operand []byte) {
+	if !cpu.Reg.Zero {
+		cpu.branch(operand)
 	}
-	c.SP = head
-	c.StackHead = head
 }
 
-// Set CPU clock delay
-func (c *CPU) SetClock(delay float64) {
-	c.Clock = delay
+// Branch if PLus (positive)
+func (cpu *CPU) bpl(inst *Instruction, operand []byte) {
+	if !cpu.Reg.Sign {
+		cpu.branch(operand)
+	}
 }
 
-func NewCPU() *CPU {
-	logger = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
-	return &CPU{}
+// Branch always (65c02 only)
+func (cpu *CPU) bra(inst *Instruction, operand []byte) {
+	cpu.branch(operand)
 }
 
-/**********************
-*
-* Internal functions to implement instruction set
-*
-***********************/
-
-// Pushes the two bytes from specified register onto stack in Big Endian format
-func (c *CPU) pushRegOnStack(reg byte) {
-	b := make([]byte, 2)
-	binary.BigEndian.PutUint16(b[0:], c.Registers[reg])
-	c.SP--                // Move SP to first available position
-	c.Memory[c.SP] = b[0] // Lo byte
-	c.SP--
-	c.Memory[c.SP] = b[1] // Hi byte
-	// SP now points to MSB of value
+// Break
+func (cpu *CPU) brk(inst *Instruction, operand []byte) {
+	cpu.Reg.PC++
+	cpu.handleInterrupt(true, vectorBRK)
 }
 
-// Pushes the two bytes from specified register onto stack in Big Endian format
-func (c *CPU) pushPCOnStack() {
-	b := make([]byte, 2)
-	binary.BigEndian.PutUint16(b[0:], c.PC)
-	c.SP--                // Move SP to first available position
-	c.Memory[c.SP] = b[0] // Lo byte, Hi Addr
-	c.SP--
-	c.Memory[c.SP] = b[1] // Hi byte, Lo Addr
-	// SP now points to MSB of value
+// Branch if oVerflow Clear
+func (cpu *CPU) bvc(inst *Instruction, operand []byte) {
+	if !cpu.Reg.Overflow {
+		cpu.branch(operand)
+	}
 }
 
-// Pops the two bytes from the stack into the specified register using the Big Endian format
-func (c *CPU) popRegFromStack(reg byte) {
-	// SP currently points to last value at top of stack
-	rval := binary.LittleEndian.Uint16(c.Memory[c.SP:])
-	//logger.Printf("Popped from stack, R%x = x%04x", reg, rval)
-	c.Registers[reg] = rval
-	c.SP = c.SP + 2
+// Branch if oVerflow Set
+func (cpu *CPU) bvs(inst *Instruction, operand []byte) {
+	if cpu.Reg.Overflow {
+		cpu.branch(operand)
+	}
 }
 
-// Pops the two bytes from the stack into the program counter using the Big Endian format
-func (c *CPU) popPCFromStack() {
-	// SP currently points to last value at top of stack
-	c.PC = binary.LittleEndian.Uint16(c.Memory[c.SP:])
-	//logger.Printf("Popped from stack, PC = x%04x", c.PC)
-	c.SP = c.SP + 2
+// Clear Carry flag
+func (cpu *CPU) clc(inst *Instruction, operand []byte) {
+	cpu.Reg.Carry = false
 }
 
-//========================== From Brett Vickers ==============================
+// Clear Decimal flag
+func (cpu *CPU) cld(inst *Instruction, operand []byte) {
+	cpu.Reg.Decimal = false
+}
+
+// Clear InterruptDisable flag
+func (cpu *CPU) cli(inst *Instruction, operand []byte) {
+	cpu.Reg.InterruptDisable = false
+}
+
+// Clear oVerflow flag
+func (cpu *CPU) clv(inst *Instruction, operand []byte) {
+	cpu.Reg.Overflow = false
+}
+
+// Compare to X register
+func (cpu *CPU) cpx(inst *Instruction, operand []byte) {
+	v := cpu.load(inst.Mode, operand)
+	cpu.Reg.Carry = (cpu.Reg.X >= v)
+	cpu.updateNZ(cpu.Reg.X - v)
+}
+
+// Compare to Y register
+func (cpu *CPU) cpy(inst *Instruction, operand []byte) {
+	v := cpu.load(inst.Mode, operand)
+	cpu.Reg.Carry = (cpu.Reg.Y >= v)
+	cpu.updateNZ(cpu.Reg.Y - v)
+}
+
+// Decrement X register
+func (cpu *CPU) dex(inst *Instruction, operand []byte) {
+	cpu.Reg.X--
+	cpu.updateNZ(cpu.Reg.X)
+}
+
+// Decrement Y register
+func (cpu *CPU) dey(inst *Instruction, operand []byte) {
+	cpu.Reg.Y--
+	cpu.updateNZ(cpu.Reg.Y)
+}
+
+// Boolean XOR
+func (cpu *CPU) eor(inst *Instruction, operand []byte) {
+	cpu.Reg.A ^= cpu.load(inst.Mode, operand)
+	cpu.updateNZ(cpu.Reg.A)
+}
+
+// Increment X register
+func (cpu *CPU) inx(inst *Instruction, operand []byte) {
+	cpu.Reg.X++
+	cpu.updateNZ(cpu.Reg.X)
+}
+
+// Increment Y register
+func (cpu *CPU) iny(inst *Instruction, operand []byte) {
+	cpu.Reg.Y++
+	cpu.updateNZ(cpu.Reg.Y)
+}
+
+// Jump to memory address (NMOS 6502)
+func (cpu *CPU) jmpn(inst *Instruction, operand []byte) {
+	cpu.Reg.PC = cpu.loadAddress(inst.Mode, operand)
+}
+
+// Jump to memory address (CMOS 65c02)
+func (cpu *CPU) jmpc(inst *Instruction, operand []byte) {
+	if inst.Mode == IND && operand[0] == 0xff {
+		// Fix bug in NMOS 6502 address loading. In NMOS 6502, a JMP ($12FF)
+		// would load LSB of jmp target from $12FF and MSB from $1200.
+		// In CMOS, it loads the MSB from $1300.
+		addr0 := uint16(operand[1])<<8 | 0xff
+		addr1 := addr0 + 1
+		lo := cpu.Mem.LoadByte(addr0)
+		hi := cpu.Mem.LoadByte(addr1)
+		cpu.Reg.PC = uint16(lo) | uint16(hi)<<8
+		cpu.deltaCycles++
+		return
+	}
+
+	cpu.Reg.PC = cpu.loadAddress(inst.Mode, operand)
+}
+
+// Jump to subroutine
+func (cpu *CPU) jsr(inst *Instruction, operand []byte) {
+	addr := cpu.loadAddress(inst.Mode, operand)
+	cpu.pushAddress(cpu.Reg.PC - 1)
+	cpu.Reg.PC = addr
+}
+
+// load Accumulator
+func (cpu *CPU) lda(inst *Instruction, operand []byte) {
+	cpu.Reg.A = cpu.load(inst.Mode, operand)
+	cpu.updateNZ(cpu.Reg.A)
+}
+
+// load the X register
+func (cpu *CPU) ldx(inst *Instruction, operand []byte) {
+	cpu.Reg.X = cpu.load(inst.Mode, operand)
+	cpu.updateNZ(cpu.Reg.X)
+}
+
+// load the Y register
+func (cpu *CPU) ldy(inst *Instruction, operand []byte) {
+	cpu.Reg.Y = cpu.load(inst.Mode, operand)
+	cpu.updateNZ(cpu.Reg.Y)
+}
+
+// Logical Shift Right
+func (cpu *CPU) lsr(inst *Instruction, operand []byte) {
+	v := cpu.load(inst.Mode, operand)
+	cpu.Reg.Carry = ((v & 1) == 1)
+	v = v >> 1
+	cpu.updateNZ(v)
+	cpu.store(inst.Mode, operand, v)
+	if cpu.Arch == CMOS && inst.Mode == ABX && !cpu.pageCrossed {
+		cpu.deltaCycles--
+	}
+}
+
+// Boolean OR
+func (cpu *CPU) ora(inst *Instruction, operand []byte) {
+	cpu.Reg.A |= cpu.load(inst.Mode, operand)
+	cpu.updateNZ(cpu.Reg.A)
+}
+
+// Push Accumulator
+func (cpu *CPU) pha(inst *Instruction, operand []byte) {
+	cpu.push(cpu.Reg.A)
+}
+
+// Push Processor flags
+func (cpu *CPU) php(inst *Instruction, operand []byte) {
+	cpu.push(cpu.Reg.SavePS(true))
+}
+
+// Push X register (65c02 only)
+func (cpu *CPU) phx(inst *Instruction, operand []byte) {
+	cpu.push(cpu.Reg.X)
+}
+
+// Push Y register (65c02 only)
+func (cpu *CPU) phy(inst *Instruction, operand []byte) {
+	cpu.push(cpu.Reg.Y)
+}
+
+// Pull (pop) Accumulator
+func (cpu *CPU) pla(inst *Instruction, operand []byte) {
+	cpu.Reg.A = cpu.pop()
+	cpu.updateNZ(cpu.Reg.A)
+}
+
+// Pull (pop) Processor flags
+func (cpu *CPU) plp(inst *Instruction, operand []byte) {
+	v := cpu.pop()
+	cpu.Reg.RestorePS(v)
+}
+
+// Pull (pop) X register (65c02 only)
+func (cpu *CPU) plx(inst *Instruction, operand []byte) {
+	cpu.Reg.X = cpu.pop()
+	cpu.updateNZ(cpu.Reg.X)
+}
+
+// Pull (pop) Y register (65c02 only)
+func (cpu *CPU) ply(inst *Instruction, operand []byte) {
+	cpu.Reg.Y = cpu.pop()
+	cpu.updateNZ(cpu.Reg.Y)
+}
+
+// Rotate Left
+func (cpu *CPU) rol(inst *Instruction, operand []byte) {
+	tmp := cpu.load(inst.Mode, operand)
+	v := (tmp << 1) | boolToByte(cpu.Reg.Carry)
+	cpu.Reg.Carry = ((tmp & 0x80) != 0)
+	cpu.updateNZ(v)
+	cpu.store(inst.Mode, operand, v)
+	if cpu.Arch == CMOS && inst.Mode == ABX && !cpu.pageCrossed {
+		cpu.deltaCycles--
+	}
+}
+
+// Rotate Right
+func (cpu *CPU) ror(inst *Instruction, operand []byte) {
+	tmp := cpu.load(inst.Mode, operand)
+	v := (tmp >> 1) | (boolToByte(cpu.Reg.Carry) << 7)
+	cpu.Reg.Carry = ((tmp & 1) != 0)
+	cpu.updateNZ(v)
+	cpu.store(inst.Mode, operand, v)
+	if cpu.Arch == CMOS && inst.Mode == ABX && !cpu.pageCrossed {
+		cpu.deltaCycles--
+	}
+}
+
+// Return from Interrupt
+func (cpu *CPU) rti(inst *Instruction, operand []byte) {
+	v := cpu.pop()
+	cpu.Reg.RestorePS(v)
+	cpu.Reg.PC = cpu.popAddress()
+}
+
+// Return from Subroutine
+func (cpu *CPU) rts(inst *Instruction, operand []byte) {
+	addr := cpu.popAddress()
+	cpu.Reg.PC = addr + 1
+}
+
+// Subtract with Carry (CMOS)
+func (cpu *CPU) sbcc(inst *Instruction, operand []byte) {
+	acc := uint32(cpu.Reg.A)
+	sub := uint32(cpu.load(inst.Mode, operand))
+	carry := boolToUint32(cpu.Reg.Carry)
+	cpu.Reg.Overflow = ((acc ^ sub) & 0x80) != 0
+	var v uint32
+
+	switch cpu.Reg.Decimal {
+	case true:
+		cpu.deltaCycles++
+
+		lo := 0x0f + (acc & 0x0f) - (sub & 0x0f) + carry
+
+		var carrylo uint32
+		if lo < 0x10 {
+			lo -= 0x06
+			carrylo = 0
+		} else {
+			lo -= 0x10
+			carrylo = 0x10
+		}
+
+		hi := 0xf0 + (acc & 0xf0) - (sub & 0xf0) + carrylo
+
+		if hi < 0x100 {
+			cpu.Reg.Carry = false
+			if hi < 0x80 {
+				cpu.Reg.Overflow = false
+			}
+			hi -= 0x60
+		} else {
+			cpu.Reg.Carry = true
+			if hi >= 0x180 {
+				cpu.Reg.Overflow = false
+			}
+			hi -= 0x100
+		}
+
+		v = hi | lo
+
+	case false:
+		v = 0xff + acc - sub + carry
+		if v < 0x100 {
+			cpu.Reg.Carry = false
+			if v < 0x80 {
+				cpu.Reg.Overflow = false
+			}
+		} else {
+			cpu.Reg.Carry = true
+			if v >= 0x180 {
+				cpu.Reg.Overflow = false
+			}
+		}
+	}
+
+	cpu.Reg.A = byte(v)
+	cpu.updateNZ(cpu.Reg.A)
+}
+
+// Subtract with Carry (NMOS)
+func (cpu *CPU) sbcn(inst *Instruction, operand []byte) {
+	acc := uint32(cpu.Reg.A)
+	sub := uint32(cpu.load(inst.Mode, operand))
+	carry := boolToUint32(cpu.Reg.Carry)
+	var v uint32
+
+	switch cpu.Reg.Decimal {
+	case true:
+		lo := 0x0f + (acc & 0x0f) - (sub & 0x0f) + carry
+
+		var carrylo uint32
+		if lo < 0x10 {
+			lo -= 0x06
+			carrylo = 0
+		} else {
+			lo -= 0x10
+			carrylo = 0x10
+		}
+
+		hi := 0xf0 + (acc & 0xf0) - (sub & 0xf0) + carrylo
+
+		if hi < 0x100 {
+			cpu.Reg.Carry = false
+			hi -= 0x60
+		} else {
+			cpu.Reg.Carry = true
+			hi -= 0x100
+		}
+
+		v = hi | lo
+
+		cpu.Reg.Overflow = ((acc^v)&0x80) != 0 && ((acc^sub)&0x80) != 0
+
+	case false:
+		v = 0xff + acc - sub + carry
+		cpu.Reg.Carry = (v >= 0x100)
+		cpu.Reg.Overflow = (((acc & 0x80) != (sub & 0x80)) && ((acc & 0x80) != (v & 0x80)))
+	}
+
+	cpu.Reg.A = byte(v)
+	cpu.updateNZ(byte(v))
+}
+
+// Set Carry flag
+func (cpu *CPU) sec(inst *Instruction, operand []byte) {
+	cpu.Reg.Carry = true
+}
+
+// Set Decimal flag
+func (cpu *CPU) sed(inst *Instruction, operand []byte) {
+	cpu.Reg.Decimal = true
+}
+
+// Set InterruptDisable flag
+func (cpu *CPU) sei(inst *Instruction, operand []byte) {
+	cpu.Reg.InterruptDisable = true
+}
+
+// Store Accumulator
+func (cpu *CPU) sta(inst *Instruction, operand []byte) {
+	cpu.store(inst.Mode, operand, cpu.Reg.A)
+}
+
+// Store X register
+func (cpu *CPU) stx(inst *Instruction, operand []byte) {
+	cpu.store(inst.Mode, operand, cpu.Reg.X)
+}
+
+// Store Y register
+func (cpu *CPU) sty(inst *Instruction, operand []byte) {
+	cpu.store(inst.Mode, operand, cpu.Reg.Y)
+}
+
+// Store Zero (65c02 only)
+func (cpu *CPU) stz(inst *Instruction, operand []byte) {
+	cpu.store(inst.Mode, operand, 0)
+}
+
+// Transfer Accumulator to X register
+func (cpu *CPU) tax(inst *Instruction, operand []byte) {
+	cpu.Reg.X = cpu.Reg.A
+	cpu.updateNZ(cpu.Reg.X)
+}
+
+// Transfer Accumulator to Y register
+func (cpu *CPU) tay(inst *Instruction, operand []byte) {
+	cpu.Reg.Y = cpu.Reg.A
+	cpu.updateNZ(cpu.Reg.Y)
+}
+
+// Test and Reset Bits (65c02 only)
+func (cpu *CPU) trb(inst *Instruction, operand []byte) {
+	v := cpu.load(inst.Mode, operand)
+	cpu.Reg.Zero = ((v & cpu.Reg.A) == 0)
+	nv := (v & (cpu.Reg.A ^ 0xff))
+	cpu.store(inst.Mode, operand, nv)
+}
+
+// Test and Set Bits (65c02 only)
+func (cpu *CPU) tsb(inst *Instruction, operand []byte) {
+	v := cpu.load(inst.Mode, operand)
+	cpu.Reg.Zero = ((v & cpu.Reg.A) == 0)
+	nv := (v | cpu.Reg.A)
+	cpu.store(inst.Mode, operand, nv)
+}
+
+// Transfer stack pointer to X register
+func (cpu *CPU) tsx(inst *Instruction, operand []byte) {
+	cpu.Reg.X = cpu.Reg.SP
+	cpu.updateNZ(cpu.Reg.X)
+}
+
+// Transfer X register to Accumulator
+func (cpu *CPU) txa(inst *Instruction, operand []byte) {
+	cpu.Reg.A = cpu.Reg.X
+	cpu.updateNZ(cpu.Reg.A)
+}
+
+// Transfer X register to the stack pointer
+func (cpu *CPU) txs(inst *Instruction, operand []byte) {
+	cpu.Reg.SP = cpu.Reg.X
+}
+
+// Transfer Y register to the Accumulator
+func (cpu *CPU) tya(inst *Instruction, operand []byte) {
+	cpu.Reg.A = cpu.Reg.Y
+	cpu.updateNZ(cpu.Reg.A)
+}
 
 // Unused instruction (6502)
 func (cpu *CPU) unusedn(inst *Instruction, operand []byte) {
@@ -473,10 +932,92 @@ func (cpu *CPU) unusedc(inst *Instruction, operand []byte) {
 	// Do nothing
 }
 
-//========================== New Opcodes =============================
+//=================== Added, Chris Riddick, 2024 ====================
 
-func (c *CPU) adi(inst *Instruction, operand []byte) {
-	// TBD
+// GetRegisters returns a formatted string of register values
+func (cpu *CPU) GetRegisters() string {
+	var s string
+	s = s + fmt.Sprintf("A: x%02x\n", cpu.Reg.A)
+	s = s + fmt.Sprintf("X: x%02x\n", cpu.Reg.X)
+	s = s + fmt.Sprintf("Y: x%02x\n", cpu.Reg.Y)
+	s = s + fmt.Sprintf("SP: x%02x\n", cpu.Reg.SP)
+	s = s + fmt.Sprintf("PC: x%04x\n", cpu.Reg.PC)
+	s = s + fmt.Sprintf("Carry: %t\n", cpu.Reg.Carry)
+	s = s + fmt.Sprintf("Zero: %t\n", cpu.Reg.Zero)
+	s = s + fmt.Sprintf("InterruptDisable: %t\n", cpu.Reg.InterruptDisable)
+	s = s + fmt.Sprintf("Decimal: %t\n", cpu.Reg.Decimal)
+	s = s + fmt.Sprintf("Overflow: %t\n", cpu.Reg.Overflow)
+	s = s + fmt.Sprintf("Sign: %t\n", cpu.Reg.Sign)
+	return s
+}
+
+// GetStack returns a formatted string of bytes beginning at SP down to to of stack
+// 6502 stack grows from $01FF down to $0000
+func (cpu *CPU) GetStack() string {
+	var s string
+	stackbottom := uint16(0x01ff)
+	for i := uint16(cpu.Reg.SP) + 0x0100; i < stackbottom; i++ {
+		s = s + fmt.Sprintf("%04x: x%02x\n", i, cpu.Mem.LoadByte(i))
+	}
+	return s
+}
+
+// GetAllMemory returns a 16 byte formatted string starting at 0000
+func (cpu *CPU) GetAllMemory(addr uint16) string {
+	/* var line string
+	var buf [256]byte
+	var num uint16 = uint16(len(buf) - 1)
+	var j uint16 = 0
+	cpu.Mem.LoadBytes(addr, buf[0:]) // Copy len(buf) bytes from addr into buf[]
+	blocks := num / 16
+	remainder := num % 16
+	// Send header line with memory locations
+	line = "       00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f\n"
+	k := addr
+	for j = 0; j < blocks; j++ {
+		line = line + fmt.Sprintf("%04x:  ", k)
+		for i := k; i < k+16; i++ {
+			line = line + fmt.Sprintf("%02x ", buf[i])
+		}
+		line = line + "\n"
+		k = k + 16
+	}
+	if k >= num {
+		return line
+	}
+	endBlock := blocks * 16
+	line = line + fmt.Sprintf("%04x:  ", k)
+	for i := endBlock; i < endBlock+remainder; i++ {
+		line = line + fmt.Sprintf("%02x ", buf[i])
+	}
+	line = line + "\n" */
+	line := "Memory placeholder"
+	return line
+}
+
+//
+//========================== New Opcodes =============================
+//
+// !!!! Verify that the copied instructions actually do the same thing as the new op code
+// expects them to do !!!!
+//
+
+// ADI - Add Immeidiate. Loads  the byte immediately following the opcode into the accumulator
+//
+//	Then adds the content of Register specified by the opcode to the accumulator
+//	add stores back into the register. Overflow
+func (cpu *CPU) adi(inst *Instruction, operand []byte) {
+	r := inst.Opcode & 0b00000111                  // Get register number from opcode
+	cpu.Reg.A = (cpu.Mem.LoadByte(cpu.Reg.PC + 1)) // Get the immediate byte after the opcode
+	rv := (uint32)(cpu.Reg.R[r])                   // Get value from register r
+	acc := uint32(cpu.Reg.A)                       // Get value from A
+	add := uint32(rv)                              // Operand byte to add to A
+	var v uint32
+	v = acc + add // Add data value to content of register r
+	// Check for overflow
+	cpu.Reg.Overflow = (((acc & 0x80) == (add & 0x80)) && ((acc & 0x80) != (v & 0x80)))
+	cpu.Reg.R[r] = byte(v)
+	cpu.updateNZ(cpu.Reg.A)
 }
 
 func (c *CPU) adic(inst *Instruction, operand []byte) {
@@ -494,30 +1035,48 @@ func (c *CPU) adr(inst *Instruction, operand []byte) {
 func (c *CPU) adrc(inst *Instruction, operand []byte) {
 	// TBD
 }
-func (c *CPU) and(inst *Instruction, operand []byte) {
-	// TBD
+
+// Boolean AND
+func (cpu *CPU) and(inst *Instruction, operand []byte) {
+	cpu.Reg.A &= cpu.load(inst.Mode, operand)
+	cpu.updateNZ(cpu.Reg.A)
 }
+
 func (c *CPU) ani(inst *Instruction, operand []byte) {
 	// TBD
 }
 func (c *CPU) call(inst *Instruction, operand []byte) {
 	// TBD
 }
-func (c *CPU) cmp(inst *Instruction, operand []byte) {
-	// TBD
+
+// Compare to accumulator
+func (cpu *CPU) cmp(inst *Instruction, operand []byte) {
+	v := cpu.load(inst.Mode, operand)
+	cpu.Reg.Carry = (cpu.Reg.A >= v)
+	cpu.updateNZ(cpu.Reg.A - v)
 }
-func (c *CPU) dec(inst *Instruction, operand []byte) {
-	// TBD
+
+// Decrement memory value
+func (cpu *CPU) dec(inst *Instruction, operand []byte) {
+	v := cpu.load(inst.Mode, operand) - 1
+	cpu.updateNZ(v)
+	cpu.store(inst.Mode, operand, v)
 }
+
 func (c *CPU) ex(inst *Instruction, operand []byte) {
 	// TBD
 }
 func (c *CPU) halt(inst *Instruction, operand []byte) {
 	// TBD
 }
-func (c *CPU) inc(inst *Instruction, operand []byte) {
-	// TBD
+
+// Increment memory value
+func (cpu *CPU) inc(inst *Instruction, operand []byte) {
+	v := cpu.load(inst.Mode, operand) + 1
+	cpu.updateNZ(v)
+	cpu.store(inst.Mode, operand, v)
 }
+
 func (c *CPU) lbrc(inst *Instruction, operand []byte) {
 	// TBD
 }
@@ -530,21 +1089,31 @@ func (c *CPU) ldi(inst *Instruction, operand []byte) {
 func (c *CPU) ldm(inst *Instruction, operand []byte) {
 	// TBD
 }
-func (c *CPU) nop(inst *Instruction, operand []byte) {
-	// TBD
+
+// No-operation
+func (cpu *CPU) nop(inst *Instruction, operand []byte) {
+	// Do nothing
 }
+
 func (c *CPU) or(inst *Instruction, operand []byte) {
 	// TBD
 }
 func (c *CPU) ori(inst *Instruction, operand []byte) {
 	// TBD
 }
-func (c *CPU) pop(inst *Instruction, operand []byte) {
-	// TBD
+
+// Pop a value from the stack and return it.
+func (cpu *CPU) pop() byte {
+	cpu.Reg.SP++
+	return cpu.Mem.LoadByte(stackAddress(cpu.Reg.SP))
 }
-func (c *CPU) push(inst *Instruction, operand []byte) {
-	// TBD
+
+// Push a value 'v' onto the stack.
+func (cpu *CPU) push(v byte) {
+	cpu.storeByte(cpu, stackAddress(cpu.Reg.SP), v)
+	cpu.Reg.SP--
 }
+
 func (c *CPU) resetq(inst *Instruction, operand []byte) {
 	// TBD
 }
