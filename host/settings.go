@@ -8,8 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
-	"os"
 	"reflect"
 	"strings"
 
@@ -55,12 +53,11 @@ var (
 )
 
 func init() {
-	LogFile, err := os.OpenFile("CPU1.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	/* LogFile, err := os.OpenFile("CPU1.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatal("Failed to open log file:", err)
 	}
-
-	infoLogger := log.New(LogFile, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+	infoLogger := log.New(LogFile, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile) */
 
 	settingsType := reflect.TypeOf(settings{})
 	settingsFields = make([]settingsField, settingsType.NumField())

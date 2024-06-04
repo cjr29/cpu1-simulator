@@ -7,7 +7,9 @@
 
 package cpu
 
-import "strings"
+import (
+	"strings"
+)
 
 // An opsym is an internal symbol used to associate an opcode's data
 // with its instructions.
@@ -75,7 +77,7 @@ var impl = []opcodeImpl{
 	{symANI, "ANI", [2]instfunc{(*CPU).ani, (*CPU).ani}},
 	{symCALL, "CALL", [2]instfunc{(*CPU).call, (*CPU).call}},
 	{symCMP, "CMP", [2]instfunc{(*CPU).cmp, (*CPU).cmp}},
-	{symDEC, "DEC", [2]instfunc{nil, (*CPU).dec}},
+	{symDEC, "DEC", [2]instfunc{(*CPU).dec, (*CPU).dec}},
 	{symEX, "EX", [2]instfunc{(*CPU).ex, (*CPU).ex}},
 	{symHALT, "HALT", [2]instfunc{(*CPU).halt, (*CPU).halt}},
 	{symINC, "INC", [2]instfunc{(*CPU).inc, (*CPU).inc}},
@@ -86,8 +88,8 @@ var impl = []opcodeImpl{
 	{symNOP, "NOP", [2]instfunc{(*CPU).nop, (*CPU).nop}},
 	{symOR, "OR", [2]instfunc{(*CPU).or, (*CPU).or}},
 	{symORI, "ORI", [2]instfunc{(*CPU).ori, (*CPU).ori}},
-	{symPOP, "POP", [2]instfunc{(*CPU).pop, (*CPU).pop}},
-	{symPUSH, "PUSH", [2]instfunc{(*CPU).push, (*CPU).push}},
+	{symPOP, "POP", [2]instfunc{(*CPU).popr, (*CPU).popr}},
+	{symPUSH, "PUSH", [2]instfunc{(*CPU).pushr, (*CPU).pushr}},
 	{symRESETQ, "RESETQ", [2]instfunc{(*CPU).resetq, (*CPU).resetq}},
 	{symRET, "RET", [2]instfunc{(*CPU).ret, (*CPU).ret}},
 	{symSETQ, "SETQ", [2]instfunc{(*CPU).setq, (*CPU).setq}},
@@ -103,7 +105,7 @@ var impl = []opcodeImpl{
 	{symSUBM, "SUBM", [2]instfunc{(*CPU).subm, (*CPU).subm}},
 	{symSUBMC, "SUBMC", [2]instfunc{(*CPU).submc, (*CPU).submc}},
 	{symXOR, "XOR", [2]instfunc{(*CPU).xor, (*CPU).xor}},
-	{symXRI, "XRI", [2]instfunc{nil, (*CPU).xri}},
+	{symXRI, "XRI", [2]instfunc{(*CPU).xri, (*CPU).xri}},
 }
 
 // Mode describes a memory addressing mode.
@@ -114,17 +116,17 @@ const (
 	IMM Mode = iota // Immediate
 	IMP             // Implied (no operand)
 	DIR             // Direct using 2-byte operand as address
-	// REL             // Relative
+	REL             // Relative
 	// ZPG             // Zero Page
 	// ZPX             // Zero Page,X
 	// ZPY             // Zero Page,Y
-	// ABS             // Absolute
-	// ABX             // Absolute,X
-	// ABY             // Absolute,Y
-	// IND             // (Indirect)
-	// IDX             // (Indirect,X)
-	// IDY             // (Indirect),Y
-	// ACC             // Accumulator (no operand)
+	ABS // Absolute
+	ABX // Absolute,X
+	ABY // Absolute,Y
+	IND // (Indirect)
+	IDX // (Indirect,X)
+	IDY // (Indirect),Y
+	ACC // Accumulator (no operand)
 )
 
 // Opcode data for an (opcode, mode) pair
@@ -192,6 +194,8 @@ var data = []opcodeData{
 	{symANI, IMM, 0x57, 2, 1, 0, false},
 
 	{symCALL, DIR, 0x02, 3, 1, 0, false},
+
+	{symRET, IMP, 0x03, 1, 1, 0, false},
 
 	{symCMP, IMM, 0x85, 2, 1, 0, false},
 
@@ -349,6 +353,7 @@ var data = []opcodeData{
 	{symSUBI, IMM, 0xb8, 2, 1, 0, false},
 	{symSUBI, IMM, 0xb9, 2, 1, 0, false},
 	{symSUBI, IMM, 0xba, 2, 1, 0, false},
+	{symSUBI, IMM, 0xbb, 2, 1, 0, false},
 	{symSUBI, IMM, 0xbc, 2, 1, 0, false},
 	{symSUBI, IMM, 0xbd, 2, 1, 0, false},
 	{symSUBI, IMM, 0xbe, 2, 1, 0, false},
@@ -402,6 +407,10 @@ type unused struct {
 }
 
 var unusedData = []unused{
+	{0x04, IMP, 1, 1},
+	{0x05, IMP, 1, 1},
+	{0x06, IMP, 1, 1},
+	{0x07, IMP, 1, 1},
 	{0x1a, IMP, 1, 1},
 	{0x1b, IMP, 1, 1},
 	{0x1c, IMP, 1, 1},
@@ -479,9 +488,11 @@ func newInstructionSet(arch Architecture) *InstructionSet {
 	set := &InstructionSet{Arch: arch}
 
 	// Create a map from symbol to implementation for fast lookups.
+	//log.Println("***** newInstructionSet ...")
 	symToImpl := make(map[opsym]*opcodeImpl, len(impl))
 	for i := range impl {
 		symToImpl[impl[i].sym] = &impl[i]
+		//log.Println("name: ", impl[i].name)
 	}
 
 	// Create a map from instruction name to the slice of all instruction
@@ -544,6 +555,7 @@ func newInstructionSet(arch Architecture) *InstructionSet {
 	}
 
 	for i := 0; i < 256; i++ {
+		//log.Printf("set.instructions[i] = %s; opcode = x%02x", set.instructions[i].Name, set.instructions[i].Opcode)
 		if set.instructions[i].Name == "" {
 			panic("missing instruction")
 		}
@@ -556,8 +568,10 @@ var instructionSets [2]*InstructionSet
 // GetInstructionSet returns an instruction set for the requested CPU
 // architecture.
 func GetInstructionSet(arch Architecture) *InstructionSet {
+	//log.Println("***** Entered GetInstructionSet, arch= ", arch)
 	if instructionSets[arch] == nil {
 		// Lazy-create the instruction set.
+		//log.Println("***** Create the instruction set")
 		instructionSets[arch] = newInstructionSet(arch)
 	}
 	return instructionSets[arch]

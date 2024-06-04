@@ -208,6 +208,8 @@ func (cpu *CPU) load(mode Mode, operand []byte) byte {
 // and the 16-bit instruction operand.
 func (cpu *CPU) loadAddress(mode Mode, operand []byte) uint16 {
 	switch mode {
+	case DIR:
+		return operandToAddress(operand)
 	// case ABS:
 	// 	return operandToAddress(operand)
 	// case IND:
@@ -300,10 +302,29 @@ func (cpu *CPU) popAddress() uint16 {
 	return uint16(lo) | (uint16(hi) << 8)
 }
 
+// Pop a value from the stack and return it.
+func (cpu *CPU) pop() byte {
+	cpu.Reg.SP++
+	return cpu.Mem.LoadByte(stackAddress(cpu.Reg.SP))
+}
+
+// Push a value 'v' onto the stack.
+func (cpu *CPU) push(v byte) {
+	cpu.storeByte(cpu, stackAddress(cpu.Reg.SP), v)
+	cpu.Reg.SP--
+}
+
 // Update the Zero and Negative flags based on the value of 'v'.
 func (cpu *CPU) updateNZ(v byte) {
 	cpu.Reg.Zero = (v == 0)
 	cpu.Reg.Sign = ((v & 0x80) != 0)
+}
+
+// Decode Registers X and Y from an opcode (byte)
+func (cpu *CPU) getRegXY(v byte) (byte, byte) {
+	x := (v & 0b01110000) >> 4
+	y := (v & 0b00000111)
+	return x, y
 }
 
 // Handle a handleInterrupt by storing the program counter and status flags on
@@ -338,7 +359,7 @@ func (cpu *CPU) reset() {
 }
 
 // Add with carry (CMOS)
-func (cpu *CPU) adcc(inst *Instruction, operand []byte) {
+/* func (cpu *CPU) adcc(inst *Instruction, operand []byte) {
 	acc := uint32(cpu.Reg.A)
 	add := uint32(cpu.load(inst.Mode, operand))
 	carry := boolToUint32(cpu.Reg.Carry)
@@ -392,10 +413,10 @@ func (cpu *CPU) adcc(inst *Instruction, operand []byte) {
 
 	cpu.Reg.A = byte(v)
 	cpu.updateNZ(cpu.Reg.A)
-}
+} */
 
 // Add with carry (NMOS)
-func (cpu *CPU) adcn(inst *Instruction, operand []byte) {
+/* func (cpu *CPU) adcn(inst *Instruction, operand []byte) {
 	acc := uint32(cpu.Reg.A)
 	add := uint32(cpu.load(inst.Mode, operand))
 	carry := boolToUint32(cpu.Reg.Carry)
@@ -432,19 +453,19 @@ func (cpu *CPU) adcn(inst *Instruction, operand []byte) {
 
 	cpu.Reg.A = byte(v)
 	cpu.updateNZ(cpu.Reg.A)
-}
+} */
 
 // Arithmetic Shift Left
-func (cpu *CPU) asl(inst *Instruction, operand []byte) {
-	v := cpu.load(inst.Mode, operand)
-	cpu.Reg.Carry = ((v & 0x80) == 0x80)
-	v = v << 1
-	cpu.updateNZ(v)
-	cpu.store(inst.Mode, operand, v)
-	if cpu.Arch == CMOS && inst.Mode == ABX && !cpu.pageCrossed {
-		cpu.deltaCycles--
-	}
-}
+// func (cpu *CPU) asl(inst *Instruction, operand []byte) {
+// 	v := cpu.load(inst.Mode, operand)
+// 	cpu.Reg.Carry = ((v & 0x80) == 0x80)
+// 	v = v << 1
+// 	cpu.updateNZ(v)
+// 	cpu.store(inst.Mode, operand, v)
+// 	if cpu.Arch == CMOS && inst.Mode == ABX && !cpu.pageCrossed {
+// 		cpu.deltaCycles--
+// 	}
+// }
 
 // Branch if Carry Clear
 func (cpu *CPU) bcc(inst *Instruction, operand []byte) {
@@ -468,12 +489,12 @@ func (cpu *CPU) beq(inst *Instruction, operand []byte) {
 }
 
 // Bit Test
-func (cpu *CPU) bit(inst *Instruction, operand []byte) {
-	v := cpu.load(inst.Mode, operand)
-	cpu.Reg.Zero = ((v & cpu.Reg.A) == 0)
-	cpu.Reg.Sign = ((v & 0x80) != 0)
-	cpu.Reg.Overflow = ((v & 0x40) != 0)
-}
+// func (cpu *CPU) bit(inst *Instruction, operand []byte) {
+// 	v := cpu.load(inst.Mode, operand)
+// 	cpu.Reg.Zero = ((v & cpu.Reg.A) == 0)
+// 	cpu.Reg.Sign = ((v & 0x80) != 0)
+// 	cpu.Reg.Overflow = ((v & 0x40) != 0)
+// }
 
 // Branch if MInus (negative)
 func (cpu *CPU) bmi(inst *Instruction, operand []byte) {
@@ -542,48 +563,48 @@ func (cpu *CPU) clv(inst *Instruction, operand []byte) {
 }
 
 // Compare to X register
-func (cpu *CPU) cpx(inst *Instruction, operand []byte) {
-	v := cpu.load(inst.Mode, operand)
-	cpu.Reg.Carry = (cpu.Reg.X >= v)
-	cpu.updateNZ(cpu.Reg.X - v)
-}
+// func (cpu *CPU) cpx(inst *Instruction, operand []byte) {
+// 	v := cpu.load(inst.Mode, operand)
+// 	cpu.Reg.Carry = (cpu.Reg.X >= v)
+// 	cpu.updateNZ(cpu.Reg.X - v)
+// }
 
 // Compare to Y register
-func (cpu *CPU) cpy(inst *Instruction, operand []byte) {
-	v := cpu.load(inst.Mode, operand)
-	cpu.Reg.Carry = (cpu.Reg.Y >= v)
-	cpu.updateNZ(cpu.Reg.Y - v)
-}
+// func (cpu *CPU) cpy(inst *Instruction, operand []byte) {
+// 	v := cpu.load(inst.Mode, operand)
+// 	cpu.Reg.Carry = (cpu.Reg.Y >= v)
+// 	cpu.updateNZ(cpu.Reg.Y - v)
+// }
 
 // Decrement X register
-func (cpu *CPU) dex(inst *Instruction, operand []byte) {
-	cpu.Reg.X--
-	cpu.updateNZ(cpu.Reg.X)
-}
+// func (cpu *CPU) dex(inst *Instruction, operand []byte) {
+// 	cpu.Reg.X--
+// 	cpu.updateNZ(cpu.Reg.X)
+// }
 
 // Decrement Y register
-func (cpu *CPU) dey(inst *Instruction, operand []byte) {
-	cpu.Reg.Y--
-	cpu.updateNZ(cpu.Reg.Y)
-}
+// func (cpu *CPU) dey(inst *Instruction, operand []byte) {
+// 	cpu.Reg.Y--
+// 	cpu.updateNZ(cpu.Reg.Y)
+// }
 
 // Boolean XOR
-func (cpu *CPU) eor(inst *Instruction, operand []byte) {
-	cpu.Reg.A ^= cpu.load(inst.Mode, operand)
-	cpu.updateNZ(cpu.Reg.A)
-}
+// func (cpu *CPU) eor(inst *Instruction, operand []byte) {
+// 	cpu.Reg.A ^= cpu.load(inst.Mode, operand)
+// 	cpu.updateNZ(cpu.Reg.A)
+// }
 
 // Increment X register
-func (cpu *CPU) inx(inst *Instruction, operand []byte) {
-	cpu.Reg.X++
-	cpu.updateNZ(cpu.Reg.X)
-}
+// func (cpu *CPU) inx(inst *Instruction, operand []byte) {
+// 	cpu.Reg.X++
+// 	cpu.updateNZ(cpu.Reg.X)
+// }
 
 // Increment Y register
-func (cpu *CPU) iny(inst *Instruction, operand []byte) {
-	cpu.Reg.Y++
-	cpu.updateNZ(cpu.Reg.Y)
-}
+// func (cpu *CPU) iny(inst *Instruction, operand []byte) {
+// 	cpu.Reg.Y++
+// 	cpu.updateNZ(cpu.Reg.Y)
+// }
 
 // Jump to memory address (NMOS 6502)
 func (cpu *CPU) jmpn(inst *Instruction, operand []byte) {
@@ -591,22 +612,22 @@ func (cpu *CPU) jmpn(inst *Instruction, operand []byte) {
 }
 
 // Jump to memory address (CMOS 65c02)
-func (cpu *CPU) jmpc(inst *Instruction, operand []byte) {
-	if inst.Mode == IND && operand[0] == 0xff {
-		// Fix bug in NMOS 6502 address loading. In NMOS 6502, a JMP ($12FF)
-		// would load LSB of jmp target from $12FF and MSB from $1200.
-		// In CMOS, it loads the MSB from $1300.
-		addr0 := uint16(operand[1])<<8 | 0xff
-		addr1 := addr0 + 1
-		lo := cpu.Mem.LoadByte(addr0)
-		hi := cpu.Mem.LoadByte(addr1)
-		cpu.Reg.PC = uint16(lo) | uint16(hi)<<8
-		cpu.deltaCycles++
-		return
-	}
+// func (cpu *CPU) jmpc(inst *Instruction, operand []byte) {
+// 	if inst.Mode == IND && operand[0] == 0xff {
+// 		// Fix bug in NMOS 6502 address loading. In NMOS 6502, a JMP ($12FF)
+// 		// would load LSB of jmp target from $12FF and MSB from $1200.
+// 		// In CMOS, it loads the MSB from $1300.
+// 		addr0 := uint16(operand[1])<<8 | 0xff
+// 		addr1 := addr0 + 1
+// 		lo := cpu.Mem.LoadByte(addr0)
+// 		hi := cpu.Mem.LoadByte(addr1)
+// 		cpu.Reg.PC = uint16(lo) | uint16(hi)<<8
+// 		cpu.deltaCycles++
+// 		return
+// 	}
 
-	cpu.Reg.PC = cpu.loadAddress(inst.Mode, operand)
-}
+// 	cpu.Reg.PC = cpu.loadAddress(inst.Mode, operand)
+// }
 
 // Jump to subroutine
 func (cpu *CPU) jsr(inst *Instruction, operand []byte) {
@@ -616,45 +637,45 @@ func (cpu *CPU) jsr(inst *Instruction, operand []byte) {
 }
 
 // load Accumulator
-func (cpu *CPU) lda(inst *Instruction, operand []byte) {
-	cpu.Reg.A = cpu.load(inst.Mode, operand)
-	cpu.updateNZ(cpu.Reg.A)
-}
+// func (cpu *CPU) lda(inst *Instruction, operand []byte) {
+// 	cpu.Reg.A = cpu.load(inst.Mode, operand)
+// 	cpu.updateNZ(cpu.Reg.A)
+// }
 
 // load the X register
-func (cpu *CPU) ldx(inst *Instruction, operand []byte) {
-	cpu.Reg.X = cpu.load(inst.Mode, operand)
-	cpu.updateNZ(cpu.Reg.X)
-}
+// func (cpu *CPU) ldx(inst *Instruction, operand []byte) {
+// 	cpu.Reg.X = cpu.load(inst.Mode, operand)
+// 	cpu.updateNZ(cpu.Reg.X)
+// }
 
 // load the Y register
-func (cpu *CPU) ldy(inst *Instruction, operand []byte) {
-	cpu.Reg.Y = cpu.load(inst.Mode, operand)
-	cpu.updateNZ(cpu.Reg.Y)
-}
+// func (cpu *CPU) ldy(inst *Instruction, operand []byte) {
+// 	cpu.Reg.Y = cpu.load(inst.Mode, operand)
+// 	cpu.updateNZ(cpu.Reg.Y)
+// }
 
 // Logical Shift Right
-func (cpu *CPU) lsr(inst *Instruction, operand []byte) {
-	v := cpu.load(inst.Mode, operand)
-	cpu.Reg.Carry = ((v & 1) == 1)
-	v = v >> 1
-	cpu.updateNZ(v)
-	cpu.store(inst.Mode, operand, v)
-	if cpu.Arch == CMOS && inst.Mode == ABX && !cpu.pageCrossed {
-		cpu.deltaCycles--
-	}
-}
+// func (cpu *CPU) lsr(inst *Instruction, operand []byte) {
+// 	v := cpu.load(inst.Mode, operand)
+// 	cpu.Reg.Carry = ((v & 1) == 1)
+// 	v = v >> 1
+// 	cpu.updateNZ(v)
+// 	cpu.store(inst.Mode, operand, v)
+// 	if cpu.Arch == CMOS && inst.Mode == ABX && !cpu.pageCrossed {
+// 		cpu.deltaCycles--
+// 	}
+// }
 
 // Boolean OR
-func (cpu *CPU) ora(inst *Instruction, operand []byte) {
-	cpu.Reg.A |= cpu.load(inst.Mode, operand)
-	cpu.updateNZ(cpu.Reg.A)
-}
+// func (cpu *CPU) ora(inst *Instruction, operand []byte) {
+// 	cpu.Reg.A |= cpu.load(inst.Mode, operand)
+// 	cpu.updateNZ(cpu.Reg.A)
+// }
 
 // Push Accumulator
-func (cpu *CPU) pha(inst *Instruction, operand []byte) {
-	cpu.push(cpu.Reg.A)
-}
+// func (cpu *CPU) pha(inst *Instruction, operand []byte) {
+// 	cpu.push(cpu.Reg.A)
+// }
 
 // Push Processor flags
 func (cpu *CPU) php(inst *Instruction, operand []byte) {
@@ -662,179 +683,179 @@ func (cpu *CPU) php(inst *Instruction, operand []byte) {
 }
 
 // Push X register (65c02 only)
-func (cpu *CPU) phx(inst *Instruction, operand []byte) {
-	cpu.push(cpu.Reg.X)
-}
+// func (cpu *CPU) phx(inst *Instruction, operand []byte) {
+// 	cpu.push(cpu.Reg.X)
+// }
 
 // Push Y register (65c02 only)
-func (cpu *CPU) phy(inst *Instruction, operand []byte) {
-	cpu.push(cpu.Reg.Y)
-}
+// func (cpu *CPU) phy(inst *Instruction, operand []byte) {
+// 	cpu.push(cpu.Reg.Y)
+// }
 
 // Pull (pop) Accumulator
-func (cpu *CPU) pla(inst *Instruction, operand []byte) {
-	cpu.Reg.A = cpu.pop()
-	cpu.updateNZ(cpu.Reg.A)
-}
+// func (cpu *CPU) pla(inst *Instruction, operand []byte) {
+// 	cpu.Reg.A = cpu.pop()
+// 	cpu.updateNZ(cpu.Reg.A)
+// }
 
 // Pull (pop) Processor flags
-func (cpu *CPU) plp(inst *Instruction, operand []byte) {
-	v := cpu.pop()
-	cpu.Reg.RestorePS(v)
-}
+// func (cpu *CPU) plp(inst *Instruction, operand []byte) {
+// 	v := cpu.pop()
+// 	cpu.Reg.RestorePS(v)
+// }
 
 // Pull (pop) X register (65c02 only)
-func (cpu *CPU) plx(inst *Instruction, operand []byte) {
-	cpu.Reg.X = cpu.pop()
-	cpu.updateNZ(cpu.Reg.X)
-}
+// func (cpu *CPU) plx(inst *Instruction, operand []byte) {
+// 	cpu.Reg.X = cpu.pop()
+// 	cpu.updateNZ(cpu.Reg.X)
+// }
 
 // Pull (pop) Y register (65c02 only)
-func (cpu *CPU) ply(inst *Instruction, operand []byte) {
-	cpu.Reg.Y = cpu.pop()
-	cpu.updateNZ(cpu.Reg.Y)
-}
+// func (cpu *CPU) ply(inst *Instruction, operand []byte) {
+// 	cpu.Reg.Y = cpu.pop()
+// 	cpu.updateNZ(cpu.Reg.Y)
+// }
 
 // Rotate Left
-func (cpu *CPU) rol(inst *Instruction, operand []byte) {
-	tmp := cpu.load(inst.Mode, operand)
-	v := (tmp << 1) | boolToByte(cpu.Reg.Carry)
-	cpu.Reg.Carry = ((tmp & 0x80) != 0)
-	cpu.updateNZ(v)
-	cpu.store(inst.Mode, operand, v)
-	if cpu.Arch == CMOS && inst.Mode == ABX && !cpu.pageCrossed {
-		cpu.deltaCycles--
-	}
-}
+// func (cpu *CPU) rol(inst *Instruction, operand []byte) {
+// 	tmp := cpu.load(inst.Mode, operand)
+// 	v := (tmp << 1) | boolToByte(cpu.Reg.Carry)
+// 	cpu.Reg.Carry = ((tmp & 0x80) != 0)
+// 	cpu.updateNZ(v)
+// 	cpu.store(inst.Mode, operand, v)
+// 	if cpu.Arch == CMOS && inst.Mode == ABX && !cpu.pageCrossed {
+// 		cpu.deltaCycles--
+// 	}
+// }
 
 // Rotate Right
-func (cpu *CPU) ror(inst *Instruction, operand []byte) {
-	tmp := cpu.load(inst.Mode, operand)
-	v := (tmp >> 1) | (boolToByte(cpu.Reg.Carry) << 7)
-	cpu.Reg.Carry = ((tmp & 1) != 0)
-	cpu.updateNZ(v)
-	cpu.store(inst.Mode, operand, v)
-	if cpu.Arch == CMOS && inst.Mode == ABX && !cpu.pageCrossed {
-		cpu.deltaCycles--
-	}
-}
+// func (cpu *CPU) ror(inst *Instruction, operand []byte) {
+// 	tmp := cpu.load(inst.Mode, operand)
+// 	v := (tmp >> 1) | (boolToByte(cpu.Reg.Carry) << 7)
+// 	cpu.Reg.Carry = ((tmp & 1) != 0)
+// 	cpu.updateNZ(v)
+// 	cpu.store(inst.Mode, operand, v)
+// 	if cpu.Arch == CMOS && inst.Mode == ABX && !cpu.pageCrossed {
+// 		cpu.deltaCycles--
+// 	}
+// }
 
 // Return from Interrupt
-func (cpu *CPU) rti(inst *Instruction, operand []byte) {
-	v := cpu.pop()
-	cpu.Reg.RestorePS(v)
-	cpu.Reg.PC = cpu.popAddress()
-}
+// func (cpu *CPU) rti(inst *Instruction, operand []byte) {
+// 	v := cpu.pop()
+// 	cpu.Reg.RestorePS(v)
+// 	cpu.Reg.PC = cpu.popAddress()
+// }
 
 // Return from Subroutine
-func (cpu *CPU) rts(inst *Instruction, operand []byte) {
-	addr := cpu.popAddress()
-	cpu.Reg.PC = addr + 1
-}
+// func (cpu *CPU) rts(inst *Instruction, operand []byte) {
+// 	addr := cpu.popAddress()
+// 	cpu.Reg.PC = addr + 1
+// }
 
 // Subtract with Carry (CMOS)
-func (cpu *CPU) sbcc(inst *Instruction, operand []byte) {
-	acc := uint32(cpu.Reg.A)
-	sub := uint32(cpu.load(inst.Mode, operand))
-	carry := boolToUint32(cpu.Reg.Carry)
-	cpu.Reg.Overflow = ((acc ^ sub) & 0x80) != 0
-	var v uint32
+// func (cpu *CPU) sbcc(inst *Instruction, operand []byte) {
+// 	acc := uint32(cpu.Reg.A)
+// 	sub := uint32(cpu.load(inst.Mode, operand))
+// 	carry := boolToUint32(cpu.Reg.Carry)
+// 	cpu.Reg.Overflow = ((acc ^ sub) & 0x80) != 0
+// 	var v uint32
 
-	switch cpu.Reg.Decimal {
-	case true:
-		cpu.deltaCycles++
+// 	switch cpu.Reg.Decimal {
+// 	case true:
+// 		cpu.deltaCycles++
 
-		lo := 0x0f + (acc & 0x0f) - (sub & 0x0f) + carry
+// 		lo := 0x0f + (acc & 0x0f) - (sub & 0x0f) + carry
 
-		var carrylo uint32
-		if lo < 0x10 {
-			lo -= 0x06
-			carrylo = 0
-		} else {
-			lo -= 0x10
-			carrylo = 0x10
-		}
+// 		var carrylo uint32
+// 		if lo < 0x10 {
+// 			lo -= 0x06
+// 			carrylo = 0
+// 		} else {
+// 			lo -= 0x10
+// 			carrylo = 0x10
+// 		}
 
-		hi := 0xf0 + (acc & 0xf0) - (sub & 0xf0) + carrylo
+// 		hi := 0xf0 + (acc & 0xf0) - (sub & 0xf0) + carrylo
 
-		if hi < 0x100 {
-			cpu.Reg.Carry = false
-			if hi < 0x80 {
-				cpu.Reg.Overflow = false
-			}
-			hi -= 0x60
-		} else {
-			cpu.Reg.Carry = true
-			if hi >= 0x180 {
-				cpu.Reg.Overflow = false
-			}
-			hi -= 0x100
-		}
+// 		if hi < 0x100 {
+// 			cpu.Reg.Carry = false
+// 			if hi < 0x80 {
+// 				cpu.Reg.Overflow = false
+// 			}
+// 			hi -= 0x60
+// 		} else {
+// 			cpu.Reg.Carry = true
+// 			if hi >= 0x180 {
+// 				cpu.Reg.Overflow = false
+// 			}
+// 			hi -= 0x100
+// 		}
 
-		v = hi | lo
+// 		v = hi | lo
 
-	case false:
-		v = 0xff + acc - sub + carry
-		if v < 0x100 {
-			cpu.Reg.Carry = false
-			if v < 0x80 {
-				cpu.Reg.Overflow = false
-			}
-		} else {
-			cpu.Reg.Carry = true
-			if v >= 0x180 {
-				cpu.Reg.Overflow = false
-			}
-		}
-	}
+// 	case false:
+// 		v = 0xff + acc - sub + carry
+// 		if v < 0x100 {
+// 			cpu.Reg.Carry = false
+// 			if v < 0x80 {
+// 				cpu.Reg.Overflow = false
+// 			}
+// 		} else {
+// 			cpu.Reg.Carry = true
+// 			if v >= 0x180 {
+// 				cpu.Reg.Overflow = false
+// 			}
+// 		}
+// 	}
 
-	cpu.Reg.A = byte(v)
-	cpu.updateNZ(cpu.Reg.A)
-}
+// 	cpu.Reg.A = byte(v)
+// 	cpu.updateNZ(cpu.Reg.A)
+// }
 
 // Subtract with Carry (NMOS)
-func (cpu *CPU) sbcn(inst *Instruction, operand []byte) {
-	acc := uint32(cpu.Reg.A)
-	sub := uint32(cpu.load(inst.Mode, operand))
-	carry := boolToUint32(cpu.Reg.Carry)
-	var v uint32
+// func (cpu *CPU) sbcn(inst *Instruction, operand []byte) {
+// 	acc := uint32(cpu.Reg.A)
+// 	sub := uint32(cpu.load(inst.Mode, operand))
+// 	carry := boolToUint32(cpu.Reg.Carry)
+// 	var v uint32
 
-	switch cpu.Reg.Decimal {
-	case true:
-		lo := 0x0f + (acc & 0x0f) - (sub & 0x0f) + carry
+// 	switch cpu.Reg.Decimal {
+// 	case true:
+// 		lo := 0x0f + (acc & 0x0f) - (sub & 0x0f) + carry
 
-		var carrylo uint32
-		if lo < 0x10 {
-			lo -= 0x06
-			carrylo = 0
-		} else {
-			lo -= 0x10
-			carrylo = 0x10
-		}
+// 		var carrylo uint32
+// 		if lo < 0x10 {
+// 			lo -= 0x06
+// 			carrylo = 0
+// 		} else {
+// 			lo -= 0x10
+// 			carrylo = 0x10
+// 		}
 
-		hi := 0xf0 + (acc & 0xf0) - (sub & 0xf0) + carrylo
+// 		hi := 0xf0 + (acc & 0xf0) - (sub & 0xf0) + carrylo
 
-		if hi < 0x100 {
-			cpu.Reg.Carry = false
-			hi -= 0x60
-		} else {
-			cpu.Reg.Carry = true
-			hi -= 0x100
-		}
+// 		if hi < 0x100 {
+// 			cpu.Reg.Carry = false
+// 			hi -= 0x60
+// 		} else {
+// 			cpu.Reg.Carry = true
+// 			hi -= 0x100
+// 		}
 
-		v = hi | lo
+// 		v = hi | lo
 
-		cpu.Reg.Overflow = ((acc^v)&0x80) != 0 && ((acc^sub)&0x80) != 0
+// 		cpu.Reg.Overflow = ((acc^v)&0x80) != 0 && ((acc^sub)&0x80) != 0
 
-	case false:
-		v = 0xff + acc - sub + carry
-		cpu.Reg.Carry = (v >= 0x100)
-		cpu.Reg.Overflow = (((acc & 0x80) != (sub & 0x80)) && ((acc & 0x80) != (v & 0x80)))
-	}
+// 	case false:
+// 		v = 0xff + acc - sub + carry
+// 		cpu.Reg.Carry = (v >= 0x100)
+// 		cpu.Reg.Overflow = (((acc & 0x80) != (sub & 0x80)) && ((acc & 0x80) != (v & 0x80)))
+// 	}
 
-	cpu.Reg.A = byte(v)
-	cpu.updateNZ(byte(v))
-}
+// 	cpu.Reg.A = byte(v)
+// 	cpu.updateNZ(byte(v))
+// }
 
 // Set Carry flag
 func (cpu *CPU) sec(inst *Instruction, operand []byte) {
@@ -852,19 +873,19 @@ func (cpu *CPU) sei(inst *Instruction, operand []byte) {
 }
 
 // Store Accumulator
-func (cpu *CPU) sta(inst *Instruction, operand []byte) {
-	cpu.store(inst.Mode, operand, cpu.Reg.A)
-}
+// func (cpu *CPU) sta(inst *Instruction, operand []byte) {
+// 	cpu.store(inst.Mode, operand, cpu.Reg.A)
+// }
 
 // Store X register
-func (cpu *CPU) stx(inst *Instruction, operand []byte) {
-	cpu.store(inst.Mode, operand, cpu.Reg.X)
-}
+// func (cpu *CPU) stx(inst *Instruction, operand []byte) {
+// 	cpu.store(inst.Mode, operand, cpu.Reg.X)
+// }
 
 // Store Y register
-func (cpu *CPU) sty(inst *Instruction, operand []byte) {
-	cpu.store(inst.Mode, operand, cpu.Reg.Y)
-}
+// func (cpu *CPU) sty(inst *Instruction, operand []byte) {
+// 	cpu.store(inst.Mode, operand, cpu.Reg.Y)
+// }
 
 // Store Zero (65c02 only)
 func (cpu *CPU) stz(inst *Instruction, operand []byte) {
@@ -872,55 +893,55 @@ func (cpu *CPU) stz(inst *Instruction, operand []byte) {
 }
 
 // Transfer Accumulator to X register
-func (cpu *CPU) tax(inst *Instruction, operand []byte) {
-	cpu.Reg.X = cpu.Reg.A
-	cpu.updateNZ(cpu.Reg.X)
-}
+// func (cpu *CPU) tax(inst *Instruction, operand []byte) {
+// 	cpu.Reg.X = cpu.Reg.A
+// 	cpu.updateNZ(cpu.Reg.X)
+// }
 
 // Transfer Accumulator to Y register
-func (cpu *CPU) tay(inst *Instruction, operand []byte) {
-	cpu.Reg.Y = cpu.Reg.A
-	cpu.updateNZ(cpu.Reg.Y)
-}
+// func (cpu *CPU) tay(inst *Instruction, operand []byte) {
+// 	cpu.Reg.Y = cpu.Reg.A
+// 	cpu.updateNZ(cpu.Reg.Y)
+// }
 
 // Test and Reset Bits (65c02 only)
-func (cpu *CPU) trb(inst *Instruction, operand []byte) {
-	v := cpu.load(inst.Mode, operand)
-	cpu.Reg.Zero = ((v & cpu.Reg.A) == 0)
-	nv := (v & (cpu.Reg.A ^ 0xff))
-	cpu.store(inst.Mode, operand, nv)
-}
+// func (cpu *CPU) trb(inst *Instruction, operand []byte) {
+// 	v := cpu.load(inst.Mode, operand)
+// 	cpu.Reg.Zero = ((v & cpu.Reg.A) == 0)
+// 	nv := (v & (cpu.Reg.A ^ 0xff))
+// 	cpu.store(inst.Mode, operand, nv)
+// }
 
 // Test and Set Bits (65c02 only)
-func (cpu *CPU) tsb(inst *Instruction, operand []byte) {
-	v := cpu.load(inst.Mode, operand)
-	cpu.Reg.Zero = ((v & cpu.Reg.A) == 0)
-	nv := (v | cpu.Reg.A)
-	cpu.store(inst.Mode, operand, nv)
-}
+// func (cpu *CPU) tsb(inst *Instruction, operand []byte) {
+// 	v := cpu.load(inst.Mode, operand)
+// 	cpu.Reg.Zero = ((v & cpu.Reg.A) == 0)
+// 	nv := (v | cpu.Reg.A)
+// 	cpu.store(inst.Mode, operand, nv)
+// }
 
 // Transfer stack pointer to X register
-func (cpu *CPU) tsx(inst *Instruction, operand []byte) {
-	cpu.Reg.X = cpu.Reg.SP
-	cpu.updateNZ(cpu.Reg.X)
-}
+// func (cpu *CPU) tsx(inst *Instruction, operand []byte) {
+// 	cpu.Reg.X = cpu.Reg.SP
+// 	cpu.updateNZ(cpu.Reg.X)
+// }
 
 // Transfer X register to Accumulator
-func (cpu *CPU) txa(inst *Instruction, operand []byte) {
-	cpu.Reg.A = cpu.Reg.X
-	cpu.updateNZ(cpu.Reg.A)
-}
+// func (cpu *CPU) txa(inst *Instruction, operand []byte) {
+// 	cpu.Reg.A = cpu.Reg.X
+// 	cpu.updateNZ(cpu.Reg.A)
+// }
 
 // Transfer X register to the stack pointer
-func (cpu *CPU) txs(inst *Instruction, operand []byte) {
-	cpu.Reg.SP = cpu.Reg.X
-}
+// func (cpu *CPU) txs(inst *Instruction, operand []byte) {
+// 	cpu.Reg.SP = cpu.Reg.X
+// }
 
 // Transfer Y register to the Accumulator
-func (cpu *CPU) tya(inst *Instruction, operand []byte) {
-	cpu.Reg.A = cpu.Reg.Y
-	cpu.updateNZ(cpu.Reg.A)
-}
+// func (cpu *CPU) tya(inst *Instruction, operand []byte) {
+// 	cpu.Reg.A = cpu.Reg.Y
+// 	cpu.updateNZ(cpu.Reg.A)
+// }
 
 // Unused instruction (6502)
 func (cpu *CPU) unusedn(inst *Instruction, operand []byte) {
@@ -937,9 +958,14 @@ func (cpu *CPU) unusedc(inst *Instruction, operand []byte) {
 // GetRegisters returns a formatted string of register values
 func (cpu *CPU) GetRegisters() string {
 	var s string
-	s = s + fmt.Sprintf("A: x%02x\n", cpu.Reg.A)
-	s = s + fmt.Sprintf("X: x%02x\n", cpu.Reg.X)
-	s = s + fmt.Sprintf("Y: x%02x\n", cpu.Reg.Y)
+	s = s + fmt.Sprintf("R0: x%02x\n", cpu.Reg.R[0])
+	s = s + fmt.Sprintf("R1: x%02x\n", cpu.Reg.R[1])
+	s = s + fmt.Sprintf("R2: x%02x\n", cpu.Reg.R[2])
+	s = s + fmt.Sprintf("R3: x%02x\n", cpu.Reg.R[3])
+	s = s + fmt.Sprintf("R4: x%02x\n", cpu.Reg.R[4])
+	s = s + fmt.Sprintf("R5: x%02x\n", cpu.Reg.R[5])
+	s = s + fmt.Sprintf("R6: x%02x\n", cpu.Reg.R[6])
+	s = s + fmt.Sprintf("R7: x%02x\n", cpu.Reg.R[7])
 	s = s + fmt.Sprintf("SP: x%02x\n", cpu.Reg.SP)
 	s = s + fmt.Sprintf("PC: x%04x\n", cpu.Reg.PC)
 	s = s + fmt.Sprintf("Carry: %t\n", cpu.Reg.Carry)
@@ -1002,22 +1028,15 @@ func (cpu *CPU) GetAllMemory(addr uint16) string {
 // expects them to do !!!!
 //
 
-// ADI - Add Immeidiate. Loads  the byte immediately following the opcode into the accumulator
-//
-//	Then adds the content of Register specified by the opcode to the accumulator
-//	add stores back into the register. Overflow
+// ADI - Add Immediate. Register # is last three bits
 func (cpu *CPU) adi(inst *Instruction, operand []byte) {
-	r := inst.Opcode & 0b00000111                  // Get register number from opcode
-	cpu.Reg.A = (cpu.Mem.LoadByte(cpu.Reg.PC + 1)) // Get the immediate byte after the opcode
-	rv := (uint32)(cpu.Reg.R[r])                   // Get value from register r
-	acc := uint32(cpu.Reg.A)                       // Get value from A
-	add := uint32(rv)                              // Operand byte to add to A
-	var v uint32
-	v = acc + add // Add data value to content of register r
-	// Check for overflow
-	cpu.Reg.Overflow = (((acc & 0x80) == (add & 0x80)) && ((acc & 0x80) != (v & 0x80)))
+	r := inst.Opcode & 0b00000111           // Get register number from opcode
+	d := (cpu.Mem.LoadByte(cpu.Reg.PC + 1)) // Get the immediate byte after the opcode
+	rv := uint32(cpu.Reg.R[r])              // Get value from register r
+	v := uint32(d) + rv                     // Add data value to content of register r
+	cpu.Reg.Overflow = (v >= 0x100)         // Check for overflow
 	cpu.Reg.R[r] = byte(v)
-	cpu.updateNZ(cpu.Reg.A)
+	cpu.updateNZ(cpu.Reg.R[r])
 }
 
 func (c *CPU) adic(inst *Instruction, operand []byte) {
@@ -1036,10 +1055,12 @@ func (c *CPU) adrc(inst *Instruction, operand []byte) {
 	// TBD
 }
 
-// Boolean AND
+// Boolean AND Register X with Y, result to X, Set zero and neg flags
 func (cpu *CPU) and(inst *Instruction, operand []byte) {
-	cpu.Reg.A &= cpu.load(inst.Mode, operand)
-	cpu.updateNZ(cpu.Reg.A)
+	v := cpu.load(inst.Mode, operand)
+	x, y := cpu.getRegXY(v)
+	cpu.Reg.R[x] = cpu.Reg.R[x] & cpu.Reg.R[y]
+	cpu.updateNZ(cpu.Reg.R[x])
 }
 
 func (c *CPU) ani(inst *Instruction, operand []byte) {
@@ -1049,11 +1070,11 @@ func (c *CPU) call(inst *Instruction, operand []byte) {
 	// TBD
 }
 
-// Compare to accumulator
+// Compare Registers, Sets Carry flag to true if matched
 func (cpu *CPU) cmp(inst *Instruction, operand []byte) {
 	v := cpu.load(inst.Mode, operand)
-	cpu.Reg.Carry = (cpu.Reg.A >= v)
-	cpu.updateNZ(cpu.Reg.A - v)
+	x, y := cpu.getRegXY(v)
+	cpu.Reg.Carry = (cpu.Reg.R[x] == cpu.Reg.R[y])
 }
 
 // Decrement memory value
@@ -1102,16 +1123,17 @@ func (c *CPU) ori(inst *Instruction, operand []byte) {
 	// TBD
 }
 
-// Pop a value from the stack and return it.
-func (cpu *CPU) pop() byte {
-	cpu.Reg.SP++
-	return cpu.Mem.LoadByte(stackAddress(cpu.Reg.SP))
+// Push register
+func (cpu *CPU) pushr(inst *Instruction, operand []byte) {
+	r := inst.Opcode & 0b00000111 // Get register number from opcode
+	cpu.push(cpu.Reg.R[r])
 }
 
-// Push a value 'v' onto the stack.
-func (cpu *CPU) push(v byte) {
-	cpu.storeByte(cpu, stackAddress(cpu.Reg.SP), v)
-	cpu.Reg.SP--
+// Pop register
+func (cpu *CPU) popr(inst *Instruction, operand []byte) {
+	r := inst.Opcode & 0b00000111 // Get register number from opcode
+	cpu.Reg.R[r] = cpu.pop()
+	cpu.updateNZ(cpu.Reg.R[r])
 }
 
 func (c *CPU) resetq(inst *Instruction, operand []byte) {

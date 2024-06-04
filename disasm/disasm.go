@@ -105,8 +105,8 @@ func Disassemble(c *cpu.CPU, addr uint16, flags Flags, anno string, theme *Theme
 	if (flags & ShowRegisters) != 0 {
 		//line += GetRegisterString(&c.Reg, theme)
 		r := c.Reg
-		line += fmt.Sprintf("A=%02X X=%02X Y=%02X PS=[%s] SP=%02X PC=%04X ",
-			r.A, r.X, r.Y, getStatusBits(&r), r.SP, r.PC)
+		line += fmt.Sprintf("R0=%02X R1=%02X R2=%02X R3=%02X R4=%02X R5=%02X R6=%02X R7=%02X PS=[%s] SP=%02X PC=%04X ",
+			r.R[0], r.R[1], r.R[2], r.R[3], r.R[4], r.R[5], r.R[6], r.R[7], getStatusBits(&r), r.SP, r.PC)
 	}
 
 	if (flags & ShowCycles) != 0 {
@@ -154,14 +154,15 @@ func GetRegisterString(r *cpu.Registers) string {
 	fmt8("SP", r.SP) +
 	fmt16("PC", r.PC) +
 	theme.Reset */
-	return fmt.Sprintf("A=%02X X=%02X Y=%02X PS=[%s] SP=%02X PC=%04X",
-		r.A, r.X, r.Y, getStatusBits(r), r.SP, r.PC)
+	return fmt.Sprintf("R0=%02X R1=%02X R2=%02X R3=%02X R4=%02X R5=%02X R6=%02X R7=%02X PS=[%s] SP=%02X PC=%04X ",
+		r.R[0], r.R[1], r.R[2], r.R[3], r.R[4], r.R[5], r.R[6], r.R[7], getStatusBits(r), r.SP, r.PC)
 }
 
 // GetCompactRegisterString returns a compact string describing the contents
 // of the 6502 registers. It excludes the program counter and stack pointer.
 func GetCompactRegisterString(r *cpu.Registers) string {
-	return fmt.Sprintf("A=%02X X=%02X Y=%02X PS=[%s]", r.A, r.X, r.Y, getStatusBits(r))
+	return fmt.Sprintf("R0=%02X R1=%02X R2=%02X R3=%02X R4=%02X R5=%02X R6=%02X R7=%02X PS=[%s] SP=%02X PC=%04X ",
+		r.R[0], r.R[1], r.R[2], r.R[3], r.R[4], r.R[5], r.R[6], r.R[7], getStatusBits(r), r.SP, r.PC)
 }
 
 func codeString(b []byte) string {

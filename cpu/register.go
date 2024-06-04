@@ -6,7 +6,7 @@ package cpu
 
 // Registers contains the state of all 6502 registers.
 type Registers struct {
-	A byte // accumulator
+	//A byte // accumulator
 	// X                byte      // X indexing register
 	// Y                byte      // Y indexing register
 	R                [8]byte // 8 8-bit general-purpose registers
@@ -86,7 +86,7 @@ func boolToByte(v bool) byte {
 
 // Init initializes all registers. R = 0. SP = 0xff. PC = 0. PS = 0.
 func (r *Registers) Init() {
-	r.A = 0
+	//r.A = 0
 	// r.X = 0
 	// r.Y = 0
 	r.SP = 0xff

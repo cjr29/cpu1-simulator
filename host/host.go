@@ -135,7 +135,7 @@ func New() *Host {
 
 	// Create the emulated CPU and memory.
 	h.mem = cpu.NewFlatMemory()
-	h.cpu = cpu.NewCPU(cpu.CMOS, h.mem)
+	h.cpu = cpu.NewCPU(cpu.NMOS, h.mem)
 
 	// Create a CPU debugger and attach it to the CPU.
 	h.debugger = cpu.NewDebugger(h)
@@ -1252,12 +1252,22 @@ func (h *Host) cmdRegister(c *cmd.Command, args []string) error {
 
 		var sz int
 		switch key {
-		case "A":
-			h.cpu.Reg.A, sz = byte(v), 1
-		case "X":
-			h.cpu.Reg.X, sz = byte(v), 1
-		case "Y":
-			h.cpu.Reg.Y, sz = byte(v), 1
+		case "R0":
+			h.cpu.Reg.R[0], sz = byte(v), 1
+		case "R1":
+			h.cpu.Reg.R[1], sz = byte(v), 1
+		case "R2":
+			h.cpu.Reg.R[2], sz = byte(v), 1
+		case "R3":
+			h.cpu.Reg.R[3], sz = byte(v), 1
+		case "R4":
+			h.cpu.Reg.R[4], sz = byte(v), 1
+		case "R5":
+			h.cpu.Reg.R[5], sz = byte(v), 1
+		case "R6":
+			h.cpu.Reg.R[6], sz = byte(v), 1
+		case "R7":
+			h.cpu.Reg.R[7], sz = byte(v), 1
 		case "SP":
 			v = 0x0100 | (v & 0xff)
 			h.cpu.Reg.SP, sz = byte(v), 2
@@ -1691,12 +1701,22 @@ func (h *Host) resolveIdentifier(s string) (int64, error) {
 	s = strings.ToLower(s)
 
 	switch s {
-	case "a":
-		return int64(h.cpu.Reg.A), nil
-	case "x":
-		return int64(h.cpu.Reg.X), nil
-	case "y":
-		return int64(h.cpu.Reg.Y), nil
+	case "r0":
+		return int64(h.cpu.Reg.R[0]), nil
+	case "r1":
+		return int64(h.cpu.Reg.R[1]), nil
+	case "r2":
+		return int64(h.cpu.Reg.R[2]), nil
+	case "r3":
+		return int64(h.cpu.Reg.R[3]), nil
+	case "r4":
+		return int64(h.cpu.Reg.R[4]), nil
+	case "r5":
+		return int64(h.cpu.Reg.R[5]), nil
+	case "r6":
+		return int64(h.cpu.Reg.R[6]), nil
+	case "r7":
+		return int64(h.cpu.Reg.R[7]), nil
 	case "sp":
 		return int64(h.cpu.Reg.SP) | 0x0100, nil
 	case ".":
