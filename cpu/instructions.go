@@ -115,18 +115,17 @@ type Mode byte
 const (
 	IMM Mode = iota // Immediate
 	IMP             // Implied (no operand)
-	DIR             // Direct using 2-byte operand as address
 	REL             // Relative
-	// ZPG             // Zero Page
-	// ZPX             // Zero Page,X
-	// ZPY             // Zero Page,Y
-	ABS // Absolute
-	ABX // Absolute,X
-	ABY // Absolute,Y
-	IND // (Indirect)
-	IDX // (Indirect,X)
-	IDY // (Indirect),Y
-	ACC // Accumulator (no operand)
+	ZPG             // Zero Page
+	ZPX             // Zero Page,X
+	ZPY             // Zero Page,Y
+	ABS             // Absolute, using 2-byte operand as address
+	ABX             // Absolute,X
+	ABY             // Absolute,Y
+	IND             // (Indirect)
+	IDX             // (Indirect,X)
+	IDY             // (Indirect),Y
+	ACC             // Accumulator (no operand)
 )
 
 // Opcode data for an (opcode, mode) pair
@@ -160,23 +159,23 @@ var data = []opcodeData{
 	{symADIC, IMM, 0xa6, 2, 1, 0, false},
 	{symADIC, IMM, 0xa7, 2, 1, 0, false},
 
-	{symADM, DIR, 0x90, 3, 1, 0, false},
-	{symADM, DIR, 0x91, 3, 1, 0, false},
-	{symADM, DIR, 0x92, 3, 1, 0, false},
-	{symADM, DIR, 0x93, 3, 1, 0, false},
-	{symADM, DIR, 0x94, 3, 1, 0, false},
-	{symADM, DIR, 0x95, 3, 1, 0, false},
-	{symADM, DIR, 0x96, 3, 1, 0, false},
-	{symADM, DIR, 0x97, 3, 1, 0, false},
+	{symADM, ABS, 0x90, 3, 1, 0, false},
+	{symADM, ABS, 0x91, 3, 1, 0, false},
+	{symADM, ABS, 0x92, 3, 1, 0, false},
+	{symADM, ABS, 0x93, 3, 1, 0, false},
+	{symADM, ABS, 0x94, 3, 1, 0, false},
+	{symADM, ABS, 0x95, 3, 1, 0, false},
+	{symADM, ABS, 0x96, 3, 1, 0, false},
+	{symADM, ABS, 0x97, 3, 1, 0, false},
 
-	{symADMC, DIR, 0xa8, 3, 1, 0, false},
-	{symADMC, DIR, 0xa9, 3, 1, 0, false},
-	{symADMC, DIR, 0xaa, 3, 1, 0, false},
-	{symADMC, DIR, 0xab, 3, 1, 0, false},
-	{symADMC, DIR, 0xac, 3, 1, 0, false},
-	{symADMC, DIR, 0xad, 3, 1, 0, false},
-	{symADMC, DIR, 0xae, 3, 1, 0, false},
-	{symADMC, DIR, 0xaf, 3, 1, 0, false},
+	{symADMC, ABS, 0xa8, 3, 1, 0, false},
+	{symADMC, ABS, 0xa9, 3, 1, 0, false},
+	{symADMC, ABS, 0xaa, 3, 1, 0, false},
+	{symADMC, ABS, 0xab, 3, 1, 0, false},
+	{symADMC, ABS, 0xac, 3, 1, 0, false},
+	{symADMC, ABS, 0xad, 3, 1, 0, false},
+	{symADMC, ABS, 0xae, 3, 1, 0, false},
+	{symADMC, ABS, 0xaf, 3, 1, 0, false},
 
 	{symADR, IMM, 0x80, 2, 1, 0, false},
 
@@ -193,7 +192,7 @@ var data = []opcodeData{
 	{symANI, IMM, 0x56, 2, 1, 0, false},
 	{symANI, IMM, 0x57, 2, 1, 0, false},
 
-	{symCALL, DIR, 0x02, 3, 1, 0, false},
+	{symCALL, ABS, 0x02, 3, 1, 0, false},
 
 	{symRET, IMP, 0x03, 1, 1, 0, false},
 
@@ -221,16 +220,16 @@ var data = []opcodeData{
 	{symINC, IMP, 0x2e, 1, 1, 0, false},
 	{symINC, IMP, 0x2f, 1, 1, 0, false},
 
-	{symLBRC, DIR, 0x18, 3, 1, 0, false},
+	{symLBRC, ABS, 0x18, 3, 1, 0, false},
 
-	{symLBRQ, DIR, 0x08, 3, 1, 0, false},
-	{symLBRQ, DIR, 0x09, 3, 1, 0, false},
-	{symLBRQ, DIR, 0x0a, 3, 1, 0, false},
-	{symLBRQ, DIR, 0x0b, 3, 1, 0, false},
-	{symLBRQ, DIR, 0x0c, 3, 1, 0, false},
-	{symLBRQ, DIR, 0x0d, 3, 1, 0, false},
-	{symLBRQ, DIR, 0x0e, 3, 1, 0, false},
-	{symLBRQ, DIR, 0x0f, 3, 1, 0, false},
+	{symLBRQ, ABS, 0x08, 3, 1, 0, false},
+	{symLBRQ, ABS, 0x09, 3, 1, 0, false},
+	{symLBRQ, ABS, 0x0a, 3, 1, 0, false},
+	{symLBRQ, ABS, 0x0b, 3, 1, 0, false},
+	{symLBRQ, ABS, 0x0c, 3, 1, 0, false},
+	{symLBRQ, ABS, 0x0d, 3, 1, 0, false},
+	{symLBRQ, ABS, 0x0e, 3, 1, 0, false},
+	{symLBRQ, ABS, 0x0f, 3, 1, 0, false},
 
 	{symLDI, IMM, 0xe0, 2, 1, 0, false},
 	{symLDI, IMM, 0xe1, 2, 1, 0, false},
@@ -241,14 +240,14 @@ var data = []opcodeData{
 	{symLDI, IMM, 0xe6, 2, 1, 0, false},
 	{symLDI, IMM, 0xe7, 2, 1, 0, false},
 
-	{symLDM, DIR, 0xf0, 3, 1, 0, false},
-	{symLDM, DIR, 0xf1, 3, 1, 0, false},
-	{symLDM, DIR, 0xf2, 3, 1, 0, false},
-	{symLDM, DIR, 0xf3, 3, 1, 0, false},
-	{symLDM, DIR, 0xf4, 3, 1, 0, false},
-	{symLDM, DIR, 0xf5, 3, 1, 0, false},
-	{symLDM, DIR, 0xf6, 3, 1, 0, false},
-	{symLDM, DIR, 0xf7, 3, 1, 0, false},
+	{symLDM, ABS, 0xf0, 3, 1, 0, false},
+	{symLDM, ABS, 0xf1, 3, 1, 0, false},
+	{symLDM, ABS, 0xf2, 3, 1, 0, false},
+	{symLDM, ABS, 0xf3, 3, 1, 0, false},
+	{symLDM, ABS, 0xf4, 3, 1, 0, false},
+	{symLDM, ABS, 0xf5, 3, 1, 0, false},
+	{symLDM, ABS, 0xf6, 3, 1, 0, false},
+	{symLDM, ABS, 0xf7, 3, 1, 0, false},
 
 	{symNOP, IMP, 0x00, 1, 1, 0, false},
 
@@ -337,14 +336,14 @@ var data = []opcodeData{
 	{symSHRC, IMP, 0x76, 1, 1, 0, false},
 	{symSHRC, IMP, 0x77, 1, 1, 0, false},
 
-	{symSTI, DIR, 0xe8, 3, 1, 0, false},
-	{symSTI, DIR, 0xe9, 3, 1, 0, false},
-	{symSTI, DIR, 0xea, 3, 1, 0, false},
-	{symSTI, DIR, 0xeb, 3, 1, 0, false},
-	{symSTI, DIR, 0xec, 3, 1, 0, false},
-	{symSTI, DIR, 0xed, 3, 1, 0, false},
-	{symSTI, DIR, 0xee, 3, 1, 0, false},
-	{symSTI, DIR, 0xef, 3, 1, 0, false},
+	{symSTI, ABS, 0xe8, 3, 1, 0, false},
+	{symSTI, ABS, 0xe9, 3, 1, 0, false},
+	{symSTI, ABS, 0xea, 3, 1, 0, false},
+	{symSTI, ABS, 0xeb, 3, 1, 0, false},
+	{symSTI, ABS, 0xec, 3, 1, 0, false},
+	{symSTI, ABS, 0xed, 3, 1, 0, false},
+	{symSTI, ABS, 0xee, 3, 1, 0, false},
+	{symSTI, ABS, 0xef, 3, 1, 0, false},
 
 	{symSUB, IMM, 0x82, 2, 1, 0, false},
 
@@ -368,23 +367,23 @@ var data = []opcodeData{
 	{symSUBIC, IMM, 0xd6, 2, 1, 0, false},
 	{symSUBIC, IMM, 0xd7, 2, 1, 0, false},
 
-	{symSUBM, DIR, 0xc0, 3, 1, 0, false},
-	{symSUBM, DIR, 0xc1, 3, 1, 0, false},
-	{symSUBM, DIR, 0xc2, 3, 1, 0, false},
-	{symSUBM, DIR, 0xc3, 3, 1, 0, false},
-	{symSUBM, DIR, 0xc4, 3, 1, 0, false},
-	{symSUBM, DIR, 0xc5, 3, 1, 0, false},
-	{symSUBM, DIR, 0xc6, 3, 1, 0, false},
-	{symSUBM, DIR, 0xc7, 3, 1, 0, false},
+	{symSUBM, ABS, 0xc0, 3, 1, 0, false},
+	{symSUBM, ABS, 0xc1, 3, 1, 0, false},
+	{symSUBM, ABS, 0xc2, 3, 1, 0, false},
+	{symSUBM, ABS, 0xc3, 3, 1, 0, false},
+	{symSUBM, ABS, 0xc4, 3, 1, 0, false},
+	{symSUBM, ABS, 0xc5, 3, 1, 0, false},
+	{symSUBM, ABS, 0xc6, 3, 1, 0, false},
+	{symSUBM, ABS, 0xc7, 3, 1, 0, false},
 
-	{symSUBMC, DIR, 0xd8, 3, 1, 0, false},
-	{symSUBMC, DIR, 0xd9, 3, 1, 0, false},
-	{symSUBMC, DIR, 0xda, 3, 1, 0, false},
-	{symSUBMC, DIR, 0xdb, 3, 1, 0, false},
-	{symSUBMC, DIR, 0xdc, 3, 1, 0, false},
-	{symSUBMC, DIR, 0xdd, 3, 1, 0, false},
-	{symSUBMC, DIR, 0xde, 3, 1, 0, false},
-	{symSUBMC, DIR, 0xdf, 3, 1, 0, false},
+	{symSUBMC, ABS, 0xd8, 3, 1, 0, false},
+	{symSUBMC, ABS, 0xd9, 3, 1, 0, false},
+	{symSUBMC, ABS, 0xda, 3, 1, 0, false},
+	{symSUBMC, ABS, 0xdb, 3, 1, 0, false},
+	{symSUBMC, ABS, 0xdc, 3, 1, 0, false},
+	{symSUBMC, ABS, 0xdd, 3, 1, 0, false},
+	{symSUBMC, ABS, 0xde, 3, 1, 0, false},
+	{symSUBMC, ABS, 0xdf, 3, 1, 0, false},
 
 	{symXOR, IMM, 0x19, 2, 1, 0, false},
 

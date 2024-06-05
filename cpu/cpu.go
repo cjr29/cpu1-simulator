@@ -208,13 +208,11 @@ func (cpu *CPU) load(mode Mode, operand []byte) byte {
 // and the 16-bit instruction operand.
 func (cpu *CPU) loadAddress(mode Mode, operand []byte) uint16 {
 	switch mode {
-	case DIR:
+	case ABS:
 		return operandToAddress(operand)
-	// case ABS:
-	// 	return operandToAddress(operand)
-	// case IND:
-	// 	addr := operandToAddress(operand)
-	// 	return cpu.Mem.LoadAddress(addr)
+	case IND:
+		addr := operandToAddress(operand)
+		return cpu.Mem.LoadAddress(addr)
 	default:
 		panic("Invalid addressing mode")
 	}
@@ -235,9 +233,9 @@ func (cpu *CPU) store(mode Mode, operand []byte, v byte) {
 	// 	zpaddr := operandToAddress(operand)
 	// 	zpaddr = offsetZeroPage(zpaddr, cpu.Reg.Y)
 	// 	cpu.storeByte(cpu, zpaddr, v)
-	// case ABS:
-	// 	addr := operandToAddress(operand)
-	// 	cpu.storeByte(cpu, addr, v)
+	case ABS:
+		addr := operandToAddress(operand)
+		cpu.storeByte(cpu, addr, v)
 	// case ABX:
 	// 	addr := operandToAddress(operand)
 	// 	addr, cpu.pageCrossed = offsetAddress(addr, cpu.Reg.X)
