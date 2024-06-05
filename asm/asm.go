@@ -822,6 +822,8 @@ func (a *assembler) parseArch(line, label fstring, param any) error {
 		a.arch = cpu.NMOS
 	case arch == "65c02" || arch == "cmos":
 		a.arch = cpu.CMOS
+	case arch == "CPU1" || arch == "cpu1":
+		a.arch = cpu.NMOS
 	default:
 		a.addError(line, "invalid architecture '%s'", archl.str)
 		return errParse
