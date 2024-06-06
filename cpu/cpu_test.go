@@ -44,21 +44,33 @@ func expectPC(t *testing.T, cpu *cpu.CPU, pc uint16) {
 	}
 }
 
+func expectQ(t *testing.T, cpu *cpu.CPU, b byte) {
+	if cpu.Reg.Q != b {
+		t.Errorf("Q incorrect. exp: $%02X, got: $%02X", b, cpu.Reg.Q)
+	}
+}
+
 func expectCycles(t *testing.T, cpu *cpu.CPU, cycles uint64) {
 	if cpu.Cycles != cycles {
 		t.Errorf("Cycles incorrect. exp: %d, got: %d", cycles, cpu.Cycles)
 	}
 }
 
-func expectACC(t *testing.T, cpu *cpu.CPU, acc byte) {
+/* func expectACC(t *testing.T, cpu *cpu.CPU, acc byte) {
 	if cpu.Reg.A != acc {
 		t.Errorf("Accumulator incorrect. exp: $%02X, got: $%02X", acc, cpu.Reg.A)
 	}
-}
+} */
 
 func expectSP(t *testing.T, cpu *cpu.CPU, sp byte) {
 	if cpu.Reg.SP != sp {
 		t.Errorf("stack pointer incorrect. exp: %02X, got $%02X", sp, cpu.Reg.SP)
+	}
+}
+
+func expectR(t *testing.T, cpu *cpu.CPU, acc byte, reg byte) {
+	if cpu.Reg.R[reg] != acc {
+		t.Errorf("Register incorrect. exp: $%02X, got: $%02X", acc, cpu.Reg.R[reg])
 	}
 }
 
@@ -69,122 +81,96 @@ func expectMem(t *testing.T, cpu *cpu.CPU, addr uint16, v byte) {
 	}
 }
 
-/* func TestAccumulator(t *testing.T) {
+func TestReg0(t *testing.T) {
 	asm := `
 	.ORG $1000
-	LDA #$5E
-	STA $15
-	STA $1500`
+	LDI0 #$5E
+	STI0 $1500`
 
-	cpu := runCPU(t, asm, 3)
+	cpu := runCPU(t, asm, 2) // 2 steps
 	if cpu == nil {
 		return
 	}
 
-	expectPC(t, cpu, 0x1007)
-	expectCycles(t, cpu, 9)
-	expectACC(t, cpu, 0x5e)
-	expectMem(t, cpu, 0x15, 0x5e)
+	expectPC(t, cpu, 0x1005)
+	expectCycles(t, cpu, 5)
+	expectR(t, cpu, 0x5e, 0)
 	expectMem(t, cpu, 0x1500, 0x5e)
-} */
+}
 
 func TestStack(t *testing.T) {
 	asm := `
 	.ORG $1000
-	LDA #$11
-	PHA
-	LDA #$12
-	PHA
-	LDA #$13
-	PHA
+	LDI0 #$11
+	PUSH0
+	LDI0 #$12
+	PUSH0
+	LDI0 #$13
+	PUSH0
 
-	PLA
-	STA $2000
-	PLA
-	STA $2001
-	PLA
-	STA $2002`
+	POP0
+	STI0 $2000
+	POP0
+	STI0 $2001
+	POP0
+	STI0 $2002`
 
 	cpu := loadCPU(t, asm)
 	stepCPU(cpu, 6)
 
 	expectSP(t, cpu, 0xfc)
-	expectACC(t, cpu, 0x13)
+	expectR(t, cpu, 0x13, 0)
 	expectMem(t, cpu, 0x1ff, 0x11)
 	expectMem(t, cpu, 0x1fe, 0x12)
 	expectMem(t, cpu, 0x1fd, 0x13)
 
 	stepCPU(cpu, 6)
-	expectACC(t, cpu, 0x11)
+	expectR(t, cpu, 0x11, 0)
 	expectSP(t, cpu, 0xff)
 	expectMem(t, cpu, 0x2000, 0x13)
 	expectMem(t, cpu, 0x2001, 0x12)
 	expectMem(t, cpu, 0x2002, 0x11)
 }
 
-func TestIndirect(t *testing.T) {
+// Test Q instructions
+func TestQ(t *testing.T) {
 	asm := `
 	.ORG $1000
-	LDX #$80
-	LDY #$40
-	LDA #$EE
-	STA $2000,X
-	STA $2000,Y
+	SETQ0
+	SETQ1
+	SETQ2
+	SETQ3
+	SETQ4
+	SETQ5
+	SETQ6
+	SETQ7`
 
-	LDA #$11
-	STA $06
-	LDA #$05
-	STA $07
-	LDX #$01
-	LDY #$01
-	LDA #$BB
-	STA ($05,X)
-	STA ($06),Y
-	`
-
-	cpu := runCPU(t, asm, 14)
-	expectMem(t, cpu, 0x2080, 0xee)
-	expectMem(t, cpu, 0x2040, 0xee)
-	expectMem(t, cpu, 0x0511, 0xbb)
-	expectMem(t, cpu, 0x0512, 0xbb)
-}
-
-/* func TestPageCross(t *testing.T) {
-	asm := `
-	.ORG $1000
-	LDA #$55		; 2 cycles
-	STA $1101		; 4 cycles
-	LDA #$00		; 2 cycles
-	LDX #$FF		; 2 cycles
-	LDA $1002,X		; 5 cycles`
-
-	cpu := runCPU(t, asm, 5)
+	cpu := runCPU(t, asm, 8)
 	if cpu == nil {
 		return
 	}
 
-	expectPC(t, cpu, 0x100c)
-	expectCycles(t, cpu, 15)
-	expectACC(t, cpu, 0x55)
-	expectMem(t, cpu, 0x1101, 0x55)
-} */
+	expectPC(t, cpu, 0x1008)
+	expectCycles(t, cpu, 8)
+	expectQ(t, cpu, 0xff)
+}
 
-func TestUnused65c02(t *testing.T) {
+func TestUnusedCPU1(t *testing.T) {
 	asm := `
 	.ORG $1000
-	.ARCH 65c02
-	.DH 0200
-	.DH 03
+	.ARCH CPU1
+	.DH 04
+	.DH 05
+	.DH 06
 	.DH 07
-	.DH 0b
-	.DH 0f
-	.DH fc0102`
+	.DH 1a
+	.DH 1b`
 
 	cpu := runCPU(t, asm, 6)
 	if cpu == nil {
 		return
 	}
 
-	expectPC(t, cpu, 0x1009)
-	expectCycles(t, cpu, 10)
+	expectPC(t, cpu, 0x1006)
+	expectCycles(t, cpu, 6)
 }

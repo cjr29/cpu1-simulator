@@ -10,6 +10,7 @@ type Registers struct {
 	// X                byte      // X indexing register
 	// Y                byte      // Y indexing register
 	R                [8]byte // 8 8-bit general-purpose registers
+	Q                byte    // 8-bit Q I/O register
 	SP               byte    // stack pointer ($100 + SP = stack memory location)
 	PC               uint16  // program counter
 	Carry            bool    // PS: Carry bit

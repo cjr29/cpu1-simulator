@@ -165,9 +165,9 @@ func (cpu *CPU) load(mode Mode, operand []byte) byte {
 	switch mode {
 	case IMM:
 		return operand[0]
-	// case ZPG:
-	// 	zpaddr := operandToAddress(operand)
-	// 	return cpu.Mem.LoadByte(zpaddr)
+	case ZPG:
+		zpaddr := operandToAddress(operand)
+		return cpu.Mem.LoadByte(zpaddr)
 	// case ZPX:
 	// 	zpaddr := operandToAddress(operand)
 	// 	zpaddr = offsetZeroPage(zpaddr, cpu.Reg.X)
@@ -176,9 +176,9 @@ func (cpu *CPU) load(mode Mode, operand []byte) byte {
 	// 	zpaddr := operandToAddress(operand)
 	// 	zpaddr = offsetZeroPage(zpaddr, cpu.Reg.Y)
 	// 	return cpu.Mem.LoadByte(zpaddr)
-	// case ABS:
-	// 	addr := operandToAddress(operand)
-	// 	return cpu.Mem.LoadByte(addr)
+	case ABS:
+		addr := operandToAddress(operand)
+		return cpu.Mem.LoadByte(addr)
 	// case ABX:
 	// 	addr := operandToAddress(operand)
 	// 	addr, cpu.pageCrossed = offsetAddress(addr, cpu.Reg.X)
@@ -222,9 +222,9 @@ func (cpu *CPU) loadAddress(mode Mode, operand []byte) uint16 {
 // variable-sized instruction operand to determine where to store it.
 func (cpu *CPU) store(mode Mode, operand []byte, v byte) {
 	switch mode {
-	// case ZPG:
-	// 	zpaddr := operandToAddress(operand)
-	// 	cpu.storeByte(cpu, zpaddr, v)
+	case ZPG:
+		zpaddr := operandToAddress(operand)
+		cpu.storeByte(cpu, zpaddr, v)
 	// case ZPX:
 	// 	zpaddr := operandToAddress(operand)
 	// 	zpaddr = offsetZeroPage(zpaddr, cpu.Reg.X)
@@ -312,6 +312,18 @@ func (cpu *CPU) push(v byte) {
 	cpu.Reg.SP--
 }
 
+// Set bit in byte
+func bitSet(b byte, nbit byte) byte {
+	b = b | (1 << (nbit))
+	return b
+}
+
+// Clear bit in byte
+func bitClear(b byte, nbit byte) byte {
+	b = b & ^(1 << (nbit))
+	return b
+}
+
 // Update the Zero and Negative flags based on the value of 'v'.
 func (cpu *CPU) updateNZ(v byte) {
 	cpu.Reg.Zero = (v == 0)
@@ -323,6 +335,12 @@ func (cpu *CPU) getRegXY(v byte) (byte, byte) {
 	x := (v & 0b01110000) >> 4
 	y := (v & 0b00000111)
 	return x, y
+}
+
+// Decode Register # from  3 lsb of an opcode (byte)
+func (cpu *CPU) getReg(v byte) byte {
+	r := (v & 0b00000111)
+	return r
 }
 
 // Handle a handleInterrupt by storing the program counter and status flags on
@@ -1102,9 +1120,15 @@ func (c *CPU) lbrc(inst *Instruction, operand []byte) {
 func (c *CPU) lbrq(inst *Instruction, operand []byte) {
 	// TBD
 }
-func (c *CPU) ldi(inst *Instruction, operand []byte) {
-	// TBD
+
+// Load Register Immediate
+func (cpu *CPU) ldi(inst *Instruction, operand []byte) {
+	v := cpu.load(inst.Mode, operand) // Get value from operand
+	r := cpu.getReg(inst.Opcode)      // Get reg # from instruction opcode
+	cpu.Reg.R[r] = v                  // Store value in register
+	fmt.Printf("Operand: %02x, Reg #: %02x, Reg Content: %02x\n", v, r, cpu.Reg.R[r])
 }
+
 func (c *CPU) ldm(inst *Instruction, operand []byte) {
 	// TBD
 }
@@ -1123,26 +1147,29 @@ func (c *CPU) ori(inst *Instruction, operand []byte) {
 
 // Push register
 func (cpu *CPU) pushr(inst *Instruction, operand []byte) {
-	r := inst.Opcode & 0b00000111 // Get register number from opcode
+	r := cpu.getReg(inst.Opcode) // Get reg # from instruction opcode
 	cpu.push(cpu.Reg.R[r])
 }
 
 // Pop register
 func (cpu *CPU) popr(inst *Instruction, operand []byte) {
-	r := inst.Opcode & 0b00000111 // Get register number from opcode
+	r := cpu.getReg(inst.Opcode) // Get reg # from instruction opcode
 	cpu.Reg.R[r] = cpu.pop()
 	cpu.updateNZ(cpu.Reg.R[r])
 }
 
-func (c *CPU) resetq(inst *Instruction, operand []byte) {
-	// TBD
+func (cpu *CPU) resetq(inst *Instruction, operand []byte) {
+	r := cpu.getReg(inst.Opcode)       // Get reg # from instruction opcode
+	cpu.Reg.Q = bitClear(cpu.Reg.Q, r) // Clear the r bit of Q byte
 }
 func (c *CPU) ret(inst *Instruction, operand []byte) {
 	// TBD
 }
-func (c *CPU) setq(inst *Instruction, operand []byte) {
-	// TBD
+func (cpu *CPU) setq(inst *Instruction, operand []byte) {
+	r := cpu.getReg(inst.Opcode)     // Get reg # from instruction opcode
+	cpu.Reg.Q = bitSet(cpu.Reg.Q, r) // Set the r bit of Q byte
 }
+
 func (c *CPU) shl(inst *Instruction, operand []byte) {
 	// TBD
 }
@@ -1155,9 +1182,15 @@ func (c *CPU) shr(inst *Instruction, operand []byte) {
 func (c *CPU) shrc(inst *Instruction, operand []byte) {
 	// TBD
 }
-func (c *CPU) sti(inst *Instruction, operand []byte) {
-	// TBD
+
+// Store Register value from opcode into address specified by two-byte operand
+func (cpu *CPU) sti(inst *Instruction, operand []byte) {
+	r := cpu.getReg(inst.Opcode) // Get reg # from instruction opcode
+	addr := operandToAddress(operand)
+	cpu.Mem.StoreByte(addr, cpu.Reg.R[r])
+	//fmt.Printf("Address to store at: %04x, Reg #: %02x, Reg Content: %02x\n", addr, r, cpu.Reg.R[r])
 }
+
 func (c *CPU) sub(inst *Instruction, operand []byte) {
 	// TBD
 }

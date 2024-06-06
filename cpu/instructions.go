@@ -16,7 +16,14 @@ import (
 type opsym byte
 
 const (
-	symADI opsym = iota
+	symADI0 opsym = iota
+	symADI1
+	symADI2
+	symADI3
+	symADI4
+	symADI5
+	symADI6
+	symADI7
 	symADIC
 	symADM
 	symADMC
@@ -32,21 +39,63 @@ const (
 	symINC
 	symLBRC
 	symLBRQ
-	symLDI
+	symLDI0
+	symLDI1
+	symLDI2
+	symLDI3
+	symLDI4
+	symLDI5
+	symLDI6
+	symLDI7
 	symLDM
 	symNOP
 	symOR
 	symORI
-	symPOP
-	symPUSH
-	symRESETQ
+	symPOP0
+	symPOP1
+	symPOP2
+	symPOP3
+	symPOP4
+	symPOP5
+	symPOP6
+	symPOP7
+	symPUSH0
+	symPUSH1
+	symPUSH2
+	symPUSH3
+	symPUSH4
+	symPUSH5
+	symPUSH6
+	symPUSH7
+	symRESETQ0
+	symRESETQ1
+	symRESETQ2
+	symRESETQ3
+	symRESETQ4
+	symRESETQ5
+	symRESETQ6
+	symRESETQ7
 	symRET
-	symSETQ
+	symSETQ0
+	symSETQ1
+	symSETQ2
+	symSETQ3
+	symSETQ4
+	symSETQ5
+	symSETQ6
+	symSETQ7
 	symSHL
 	symSHLC
 	symSHR
 	symSHRC
-	symSTI
+	symSTI0
+	symSTI1
+	symSTI2
+	symSTI3
+	symSTI4
+	symSTI5
+	symSTI6
+	symSTI7
 	symSUB
 	symSUBC
 	symSUBI
@@ -67,7 +116,14 @@ type opcodeImpl struct {
 }
 
 var impl = []opcodeImpl{
-	{symADI, "ADI", [2]instfunc{(*CPU).adi, (*CPU).adi}},
+	{symADI0, "ADI0", [2]instfunc{(*CPU).adi, (*CPU).adi}},
+	{symADI1, "ADI1", [2]instfunc{(*CPU).adi, (*CPU).adi}},
+	{symADI2, "ADI2", [2]instfunc{(*CPU).adi, (*CPU).adi}},
+	{symADI3, "ADI3", [2]instfunc{(*CPU).adi, (*CPU).adi}},
+	{symADI4, "ADI4", [2]instfunc{(*CPU).adi, (*CPU).adi}},
+	{symADI5, "ADI5", [2]instfunc{(*CPU).adi, (*CPU).adi}},
+	{symADI6, "ADI6", [2]instfunc{(*CPU).adi, (*CPU).adi}},
+	{symADI7, "ADI7", [2]instfunc{(*CPU).adi, (*CPU).adi}},
 	{symADIC, "ADIC", [2]instfunc{(*CPU).adic, (*CPU).adic}},
 	{symADM, "ADM", [2]instfunc{(*CPU).adm, (*CPU).adm}},
 	{symADMC, "ADMC", [2]instfunc{(*CPU).admc, (*CPU).admc}},
@@ -83,21 +139,63 @@ var impl = []opcodeImpl{
 	{symINC, "INC", [2]instfunc{(*CPU).inc, (*CPU).inc}},
 	{symLBRC, "LBRC", [2]instfunc{(*CPU).lbrc, (*CPU).lbrc}},
 	{symLBRQ, "LBRQ", [2]instfunc{(*CPU).lbrq, (*CPU).lbrq}},
-	{symLDI, "LDI", [2]instfunc{(*CPU).ldi, (*CPU).ldi}},
+	{symLDI0, "LDI0", [2]instfunc{(*CPU).ldi, (*CPU).ldi}},
+	{symLDI1, "LDI1", [2]instfunc{(*CPU).ldi, (*CPU).ldi}},
+	{symLDI2, "LDI2", [2]instfunc{(*CPU).ldi, (*CPU).ldi}},
+	{symLDI3, "LDI3", [2]instfunc{(*CPU).ldi, (*CPU).ldi}},
+	{symLDI4, "LDI4", [2]instfunc{(*CPU).ldi, (*CPU).ldi}},
+	{symLDI5, "LDI5", [2]instfunc{(*CPU).ldi, (*CPU).ldi}},
+	{symLDI6, "LDI6", [2]instfunc{(*CPU).ldi, (*CPU).ldi}},
+	{symLDI7, "LDI7", [2]instfunc{(*CPU).ldi, (*CPU).ldi}},
 	{symLDM, "LDM", [2]instfunc{(*CPU).ldm, (*CPU).ldm}},
 	{symNOP, "NOP", [2]instfunc{(*CPU).nop, (*CPU).nop}},
 	{symOR, "OR", [2]instfunc{(*CPU).or, (*CPU).or}},
 	{symORI, "ORI", [2]instfunc{(*CPU).ori, (*CPU).ori}},
-	{symPOP, "POP", [2]instfunc{(*CPU).popr, (*CPU).popr}},
-	{symPUSH, "PUSH", [2]instfunc{(*CPU).pushr, (*CPU).pushr}},
-	{symRESETQ, "RESETQ", [2]instfunc{(*CPU).resetq, (*CPU).resetq}},
+	{symPOP0, "POP0", [2]instfunc{(*CPU).popr, (*CPU).popr}},
+	{symPOP1, "POP1", [2]instfunc{(*CPU).popr, (*CPU).popr}},
+	{symPOP2, "POP2", [2]instfunc{(*CPU).popr, (*CPU).popr}},
+	{symPOP3, "POP3", [2]instfunc{(*CPU).popr, (*CPU).popr}},
+	{symPOP4, "POP4", [2]instfunc{(*CPU).popr, (*CPU).popr}},
+	{symPOP5, "POP5", [2]instfunc{(*CPU).popr, (*CPU).popr}},
+	{symPOP6, "POP6", [2]instfunc{(*CPU).popr, (*CPU).popr}},
+	{symPOP7, "POP7", [2]instfunc{(*CPU).popr, (*CPU).popr}},
+	{symPUSH0, "PUSH0", [2]instfunc{(*CPU).pushr, (*CPU).pushr}},
+	{symPUSH1, "PUSH1", [2]instfunc{(*CPU).pushr, (*CPU).pushr}},
+	{symPUSH2, "PUSH2", [2]instfunc{(*CPU).pushr, (*CPU).pushr}},
+	{symPUSH3, "PUSH3", [2]instfunc{(*CPU).pushr, (*CPU).pushr}},
+	{symPUSH4, "PUSH4", [2]instfunc{(*CPU).pushr, (*CPU).pushr}},
+	{symPUSH5, "PUSH5", [2]instfunc{(*CPU).pushr, (*CPU).pushr}},
+	{symPUSH6, "PUSH6", [2]instfunc{(*CPU).pushr, (*CPU).pushr}},
+	{symPUSH7, "PUSH7", [2]instfunc{(*CPU).pushr, (*CPU).pushr}},
+	{symRESETQ0, "RESETQ0", [2]instfunc{(*CPU).resetq, (*CPU).resetq}},
+	{symRESETQ1, "RESETQ1", [2]instfunc{(*CPU).resetq, (*CPU).resetq}},
+	{symRESETQ2, "RESETQ2", [2]instfunc{(*CPU).resetq, (*CPU).resetq}},
+	{symRESETQ3, "RESETQ3", [2]instfunc{(*CPU).resetq, (*CPU).resetq}},
+	{symRESETQ4, "RESETQ4", [2]instfunc{(*CPU).resetq, (*CPU).resetq}},
+	{symRESETQ5, "RESETQ5", [2]instfunc{(*CPU).resetq, (*CPU).resetq}},
+	{symRESETQ6, "RESETQ6", [2]instfunc{(*CPU).resetq, (*CPU).resetq}},
+	{symRESETQ7, "RESETQ7", [2]instfunc{(*CPU).resetq, (*CPU).resetq}},
 	{symRET, "RET", [2]instfunc{(*CPU).ret, (*CPU).ret}},
-	{symSETQ, "SETQ", [2]instfunc{(*CPU).setq, (*CPU).setq}},
+	{symSETQ0, "SETQ0", [2]instfunc{(*CPU).setq, (*CPU).setq}},
+	{symSETQ1, "SETQ1", [2]instfunc{(*CPU).setq, (*CPU).setq}},
+	{symSETQ2, "SETQ2", [2]instfunc{(*CPU).setq, (*CPU).setq}},
+	{symSETQ3, "SETQ3", [2]instfunc{(*CPU).setq, (*CPU).setq}},
+	{symSETQ4, "SETQ4", [2]instfunc{(*CPU).setq, (*CPU).setq}},
+	{symSETQ5, "SETQ5", [2]instfunc{(*CPU).setq, (*CPU).setq}},
+	{symSETQ6, "SETQ6", [2]instfunc{(*CPU).setq, (*CPU).setq}},
+	{symSETQ7, "SETQ7", [2]instfunc{(*CPU).setq, (*CPU).setq}},
 	{symSHL, "SHL", [2]instfunc{(*CPU).shl, (*CPU).shl}},
 	{symSHLC, "SHLC", [2]instfunc{(*CPU).shlc, (*CPU).shlc}},
 	{symSHR, "SHR", [2]instfunc{(*CPU).shr, (*CPU).shr}},
 	{symSHRC, "SHRC", [2]instfunc{(*CPU).shrc, (*CPU).shrc}},
-	{symSTI, "STI", [2]instfunc{(*CPU).sti, (*CPU).sti}},
+	{symSTI0, "STI0", [2]instfunc{(*CPU).sti, (*CPU).sti}},
+	{symSTI1, "STI1", [2]instfunc{(*CPU).sti, (*CPU).sti}},
+	{symSTI2, "STI2", [2]instfunc{(*CPU).sti, (*CPU).sti}},
+	{symSTI3, "STI3", [2]instfunc{(*CPU).sti, (*CPU).sti}},
+	{symSTI4, "STI4", [2]instfunc{(*CPU).sti, (*CPU).sti}},
+	{symSTI5, "STI5", [2]instfunc{(*CPU).sti, (*CPU).sti}},
+	{symSTI6, "STI6", [2]instfunc{(*CPU).sti, (*CPU).sti}},
+	{symSTI7, "STI7", [2]instfunc{(*CPU).sti, (*CPU).sti}},
 	{symSUB, "SUB", [2]instfunc{(*CPU).sub, (*CPU).sub}},
 	{symSUBC, "SUBC", [2]instfunc{(*CPU).subc, (*CPU).subc}},
 	{symSUBI, "SUBI", [2]instfunc{(*CPU).subi, (*CPU).subi}},
@@ -141,14 +239,14 @@ type opcodeData struct {
 
 // All valid (opcode, mode) pairs
 var data = []opcodeData{
-	{symADI, IMM, 0x88, 2, 1, 0, false},
-	{symADI, IMM, 0x89, 2, 1, 0, false},
-	{symADI, IMM, 0x8a, 2, 1, 0, false},
-	{symADI, IMM, 0x8b, 2, 1, 0, false},
-	{symADI, IMM, 0x8c, 2, 1, 0, false},
-	{symADI, IMM, 0x8d, 2, 1, 0, false},
-	{symADI, IMM, 0x8e, 2, 1, 0, false},
-	{symADI, IMM, 0x8f, 2, 1, 0, false},
+	{symADI0, IMM, 0x88, 2, 1, 0, false},
+	{symADI1, IMM, 0x89, 2, 1, 0, false},
+	{symADI2, IMM, 0x8a, 2, 1, 0, false},
+	{symADI3, IMM, 0x8b, 2, 1, 0, false},
+	{symADI4, IMM, 0x8c, 2, 1, 0, false},
+	{symADI5, IMM, 0x8d, 2, 1, 0, false},
+	{symADI6, IMM, 0x8e, 2, 1, 0, false},
+	{symADI7, IMM, 0x8f, 2, 1, 0, false},
 
 	{symADIC, IMM, 0xa0, 2, 1, 0, false},
 	{symADIC, IMM, 0xa1, 2, 1, 0, false},
@@ -231,14 +329,14 @@ var data = []opcodeData{
 	{symLBRQ, ABS, 0x0e, 3, 1, 0, false},
 	{symLBRQ, ABS, 0x0f, 3, 1, 0, false},
 
-	{symLDI, IMM, 0xe0, 2, 1, 0, false},
-	{symLDI, IMM, 0xe1, 2, 1, 0, false},
-	{symLDI, IMM, 0xe2, 2, 1, 0, false},
-	{symLDI, IMM, 0xe3, 2, 1, 0, false},
-	{symLDI, IMM, 0xe4, 2, 1, 0, false},
-	{symLDI, IMM, 0xe5, 2, 1, 0, false},
-	{symLDI, IMM, 0xe6, 2, 1, 0, false},
-	{symLDI, IMM, 0xe7, 2, 1, 0, false},
+	{symLDI0, IMM, 0xe0, 2, 2, 0, false},
+	{symLDI1, IMM, 0xe1, 2, 2, 0, false},
+	{symLDI2, IMM, 0xe2, 2, 2, 0, false},
+	{symLDI3, IMM, 0xe3, 2, 2, 0, false},
+	{symLDI4, IMM, 0xe4, 2, 2, 0, false},
+	{symLDI5, IMM, 0xe5, 2, 2, 0, false},
+	{symLDI6, IMM, 0xe6, 2, 2, 0, false},
+	{symLDI7, IMM, 0xe7, 2, 2, 0, false},
 
 	{symLDM, ABS, 0xf0, 3, 1, 0, false},
 	{symLDM, ABS, 0xf1, 3, 1, 0, false},
@@ -262,43 +360,43 @@ var data = []opcodeData{
 	{symORI, IMM, 0x5e, 2, 1, 0, false},
 	{symORI, IMM, 0x5f, 2, 1, 0, false},
 
-	{symPOP, IMP, 0x48, 1, 1, 0, false},
-	{symPOP, IMP, 0x49, 1, 1, 0, false},
-	{symPOP, IMP, 0x4a, 1, 1, 0, false},
-	{symPOP, IMP, 0x4b, 1, 1, 0, false},
-	{symPOP, IMP, 0x4c, 1, 1, 0, false},
-	{symPOP, IMP, 0x4d, 1, 1, 0, false},
-	{symPOP, IMP, 0x4e, 1, 1, 0, false},
-	{symPOP, IMP, 0x4f, 1, 1, 0, false},
+	{symPOP0, IMP, 0x48, 1, 1, 0, false},
+	{symPOP1, IMP, 0x49, 1, 1, 0, false},
+	{symPOP2, IMP, 0x4a, 1, 1, 0, false},
+	{symPOP3, IMP, 0x4b, 1, 1, 0, false},
+	{symPOP4, IMP, 0x4c, 1, 1, 0, false},
+	{symPOP5, IMP, 0x4d, 1, 1, 0, false},
+	{symPOP6, IMP, 0x4e, 1, 1, 0, false},
+	{symPOP7, IMP, 0x4f, 1, 1, 0, false},
 
-	{symPUSH, IMP, 0x40, 1, 1, 0, false},
-	{symPUSH, IMP, 0x41, 1, 1, 0, false},
-	{symPUSH, IMP, 0x42, 1, 1, 0, false},
-	{symPUSH, IMP, 0x43, 1, 1, 0, false},
-	{symPUSH, IMP, 0x44, 1, 1, 0, false},
-	{symPUSH, IMP, 0x45, 1, 1, 0, false},
-	{symPUSH, IMP, 0x46, 1, 1, 0, false},
-	{symPUSH, IMP, 0x47, 1, 1, 0, false},
+	{symPUSH0, IMP, 0x40, 1, 1, 0, false},
+	{symPUSH1, IMP, 0x41, 1, 1, 0, false},
+	{symPUSH2, IMP, 0x42, 1, 1, 0, false},
+	{symPUSH3, IMP, 0x43, 1, 1, 0, false},
+	{symPUSH4, IMP, 0x44, 1, 1, 0, false},
+	{symPUSH5, IMP, 0x45, 1, 1, 0, false},
+	{symPUSH6, IMP, 0x46, 1, 1, 0, false},
+	{symPUSH7, IMP, 0x47, 1, 1, 0, false},
 
-	{symRESETQ, IMP, 0x10, 1, 1, 0, false},
-	{symRESETQ, IMP, 0x11, 1, 1, 0, false},
-	{symRESETQ, IMP, 0x12, 1, 1, 0, false},
-	{symRESETQ, IMP, 0x13, 1, 1, 0, false},
-	{symRESETQ, IMP, 0x14, 1, 1, 0, false},
-	{symRESETQ, IMP, 0x15, 1, 1, 0, false},
-	{symRESETQ, IMP, 0x16, 1, 1, 0, false},
-	{symRESETQ, IMP, 0x17, 1, 1, 0, false},
+	{symRESETQ0, IMP, 0x10, 1, 1, 0, false},
+	{symRESETQ1, IMP, 0x11, 1, 1, 0, false},
+	{symRESETQ2, IMP, 0x12, 1, 1, 0, false},
+	{symRESETQ3, IMP, 0x13, 1, 1, 0, false},
+	{symRESETQ4, IMP, 0x14, 1, 1, 0, false},
+	{symRESETQ5, IMP, 0x15, 1, 1, 0, false},
+	{symRESETQ6, IMP, 0x16, 1, 1, 0, false},
+	{symRESETQ7, IMP, 0x17, 1, 1, 0, false},
 
 	{symRET, IMP, 0x03, 1, 1, 0, false},
 
-	{symSETQ, IMP, 0x38, 1, 1, 0, false},
-	{symSETQ, IMP, 0x39, 1, 1, 0, false},
-	{symSETQ, IMP, 0x3a, 1, 1, 0, false},
-	{symSETQ, IMP, 0x3b, 1, 1, 0, false},
-	{symSETQ, IMP, 0x3c, 1, 1, 0, false},
-	{symSETQ, IMP, 0x3d, 1, 1, 0, false},
-	{symSETQ, IMP, 0x3e, 1, 1, 0, false},
-	{symSETQ, IMP, 0x3f, 1, 1, 0, false},
+	{symSETQ0, IMP, 0x38, 1, 1, 0, false},
+	{symSETQ1, IMP, 0x39, 1, 1, 0, false},
+	{symSETQ2, IMP, 0x3a, 1, 1, 0, false},
+	{symSETQ3, IMP, 0x3b, 1, 1, 0, false},
+	{symSETQ4, IMP, 0x3c, 1, 1, 0, false},
+	{symSETQ5, IMP, 0x3d, 1, 1, 0, false},
+	{symSETQ6, IMP, 0x3e, 1, 1, 0, false},
+	{symSETQ7, IMP, 0x3f, 1, 1, 0, false},
 
 	{symSHL, IMP, 0x78, 1, 1, 0, false},
 	{symSHL, IMP, 0x79, 1, 1, 0, false},
@@ -336,14 +434,14 @@ var data = []opcodeData{
 	{symSHRC, IMP, 0x76, 1, 1, 0, false},
 	{symSHRC, IMP, 0x77, 1, 1, 0, false},
 
-	{symSTI, ABS, 0xe8, 3, 1, 0, false},
-	{symSTI, ABS, 0xe9, 3, 1, 0, false},
-	{symSTI, ABS, 0xea, 3, 1, 0, false},
-	{symSTI, ABS, 0xeb, 3, 1, 0, false},
-	{symSTI, ABS, 0xec, 3, 1, 0, false},
-	{symSTI, ABS, 0xed, 3, 1, 0, false},
-	{symSTI, ABS, 0xee, 3, 1, 0, false},
-	{symSTI, ABS, 0xef, 3, 1, 0, false},
+	{symSTI0, ABS, 0xe8, 3, 3, 0, false},
+	{symSTI1, ABS, 0xe9, 3, 3, 0, false},
+	{symSTI2, ABS, 0xea, 3, 3, 0, false},
+	{symSTI3, ABS, 0xeb, 3, 3, 0, false},
+	{symSTI4, ABS, 0xec, 3, 3, 0, false},
+	{symSTI5, ABS, 0xed, 3, 3, 0, false},
+	{symSTI6, ABS, 0xee, 3, 3, 0, false},
+	{symSTI7, ABS, 0xef, 3, 3, 0, false},
 
 	{symSUB, IMM, 0x82, 2, 1, 0, false},
 

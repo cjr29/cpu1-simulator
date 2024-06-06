@@ -34,7 +34,6 @@ const (
 var modeName = []string{
 	"IMM",
 	"IMP",
-	"DIR",
 	"REL",
 	"ZPG",
 	"ZPX",
@@ -51,7 +50,6 @@ var modeName = []string{
 var modeFormat = []string{
 	"#$%s",    // IMM
 	"%s",      // IMP
-	"$%s",     // DIR
 	"$%s",     // REL
 	"$%s",     // ZPG
 	"$%s,X",   // ZPX
@@ -396,7 +394,7 @@ func AssembleFile(path string, options Option, out io.Writer) error {
 }
 
 // Assemble reads data from the provided stream and attempts to assemble it
-// into 6502 byte code.
+// into CPU1 byte code.
 func Assemble(r io.Reader, filename string, origin uint16, out io.Writer, options Option) (*Assembly, *SourceMap, error) {
 	if out == nil {
 		out = os.Stdout
@@ -414,7 +412,8 @@ func Assemble(r io.Reader, filename string, origin uint16, out io.Writer, option
 		exports:   make([]Export, 0),
 		segments:  make([]segment, 0, 32),
 		out:       out,
-		verbose:   (options & Verbose) != 0,
+		//verbose:   (options & Verbose) != 0,	// restore after debugging
+		verbose: true, // remove after debugging
 	}
 
 	// Assembly consists of the following steps
@@ -534,6 +533,7 @@ func (a *assembler) evaluateExpressions() error {
 		}
 		a.unevaluated = unevaluated
 	}
+
 	return nil
 }
 
@@ -603,6 +603,7 @@ func (a *assembler) assignAddresses() error {
 			ss.addr = a.pc
 		}
 	}
+
 	return nil
 }
 
@@ -619,6 +620,7 @@ func (a *assembler) resolveLabels() error {
 			a.constants[label] = &expr{op: opNumber, value: addr, evaluated: true}
 		}
 	}
+
 	return nil
 }
 
@@ -630,6 +632,7 @@ func (a *assembler) handleUnevaluatedExpressions() error {
 		}
 		return errParse
 	}
+
 	return nil
 }
 
@@ -704,6 +707,7 @@ func (a *assembler) generateCode() error {
 			a.exports = append(a.exports, export)
 		}
 	}
+
 	return nil
 }
 
@@ -1338,28 +1342,28 @@ func (a *assembler) findMatchingInstruction(opcode fstring, operand operand) *cp
 			match = false
 		case inst.Mode == cpu.IMM:
 			match, qual = (operand.modeGuess == cpu.IMM) && (operand.size() == 1), 1
-			// case inst.Mode == cpu.REL:
-			// 	match, qual = (operand.modeGuess == cpu.ABS), 1
-			// case inst.Mode == cpu.ZPG:
-			// 	match, qual = (operand.modeGuess == cpu.ABS) && (operand.size() == 1), 1
-			// case inst.Mode == cpu.ZPX:
-			// 	match, qual = (operand.modeGuess == cpu.ABX) && (operand.size() == 1), 1
-			// case inst.Mode == cpu.ZPY:
-			// 	match, qual = (operand.modeGuess == cpu.ABY) && (operand.size() == 1), 1
-			// case inst.Mode == cpu.ABS:
-			// 	match, qual = (operand.modeGuess == cpu.ABS), 2
-			// case inst.Mode == cpu.ABX:
-			// 	match, qual = (operand.modeGuess == cpu.ABX), 2
-			// case inst.Mode == cpu.ABY:
-			// 	match, qual = (operand.modeGuess == cpu.ABY), 2
-			// case inst.Mode == cpu.IND && inst.Length == 3:
-			// 	match, qual = (operand.modeGuess == cpu.IND), 2
-			// case inst.Mode == cpu.IND && inst.Length == 2:
-			// 	match, qual = (operand.modeGuess == cpu.IND) && (operand.size() == 1), 1
-			// case inst.Mode == cpu.IDX:
-			// 	match, qual = (operand.modeGuess == cpu.IDX) && (operand.size() == 1), 1
-			// case inst.Mode == cpu.IDY:
-			// 	match, qual = (operand.modeGuess == cpu.IDY) && (operand.size() == 1), 1
+		case inst.Mode == cpu.REL:
+			match, qual = (operand.modeGuess == cpu.ABS), 1
+		case inst.Mode == cpu.ZPG:
+			match, qual = (operand.modeGuess == cpu.ABS) && (operand.size() == 1), 1
+		case inst.Mode == cpu.ZPX:
+			match, qual = (operand.modeGuess == cpu.ABX) && (operand.size() == 1), 1
+		case inst.Mode == cpu.ZPY:
+			match, qual = (operand.modeGuess == cpu.ABY) && (operand.size() == 1), 1
+		case inst.Mode == cpu.ABS:
+			match, qual = (operand.modeGuess == cpu.ABS), 2
+		case inst.Mode == cpu.ABX:
+			match, qual = (operand.modeGuess == cpu.ABX), 2
+		case inst.Mode == cpu.ABY:
+			match, qual = (operand.modeGuess == cpu.ABY), 2
+		case inst.Mode == cpu.IND && inst.Length == 3:
+			match, qual = (operand.modeGuess == cpu.IND), 2
+		case inst.Mode == cpu.IND && inst.Length == 2:
+			match, qual = (operand.modeGuess == cpu.IND) && (operand.size() == 1), 1
+		case inst.Mode == cpu.IDX:
+			match, qual = (operand.modeGuess == cpu.IDX) && (operand.size() == 1), 1
+		case inst.Mode == cpu.IDY:
+			match, qual = (operand.modeGuess == cpu.IDY) && (operand.size() == 1), 1
 		}
 		if match && qual < bestqual {
 			bestqual, found = qual, inst
