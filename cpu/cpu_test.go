@@ -93,7 +93,7 @@ func TestReg0(t *testing.T) {
 	}
 
 	expectPC(t, cpu, 0x1005)
-	expectCycles(t, cpu, 5)
+	expectCycles(t, cpu, 6)
 	expectR(t, cpu, 0x5e, 0)
 	expectMem(t, cpu, 0x1500, 0x5e)
 }
@@ -159,18 +159,35 @@ func TestUnusedCPU1(t *testing.T) {
 	asm := `
 	.ORG $1000
 	.ARCH CPU1
-	.DH 04
-	.DH 05
 	.DH 06
 	.DH 07
-	.DH 1a
-	.DH 1b`
+	.DH 1c
+	.DH 1d
+	.DH 1e`
 
-	cpu := runCPU(t, asm, 6)
+	cpu := runCPU(t, asm, 5)
 	if cpu == nil {
 		return
 	}
 
+	expectPC(t, cpu, 0x1005)
+	expectCycles(t, cpu, 5)
+}
+
+// Test arithmetic
+func TestArithmetic(t *testing.T) {
+	asm := `
+	.ORG $1000
+	.ARCH CPU1
+	LDI0	#$11
+	LDI1	#$01
+	ADR 	#$01
+	`
+	cpu := loadCPU(t, asm)
+	stepCPU(cpu, 3)
+
 	expectPC(t, cpu, 0x1006)
-	expectCycles(t, cpu, 6)
+	expectCycles(t, cpu, 7)
+	expectR(t, cpu, 0x12, 0)
+
 }

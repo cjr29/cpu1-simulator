@@ -33,12 +33,15 @@ const (
 	symANI
 	symCALL
 	symCMP
+	symCPSR
 	symDEC
 	symEX
 	symHALT
 	symINC
+	symLBR
 	symLBRC
 	symLBRQ
+	symLBRZ
 	symLDI0
 	symLDI1
 	symLDI2
@@ -88,6 +91,7 @@ const (
 	symSHLC
 	symSHR
 	symSHRC
+	symSPSR
 	symSTI0
 	symSTI1
 	symSTI2
@@ -124,20 +128,23 @@ var impl = []opcodeImpl{
 	{symADI5, "ADI5", [2]instfunc{(*CPU).adi, (*CPU).adi}},
 	{symADI6, "ADI6", [2]instfunc{(*CPU).adi, (*CPU).adi}},
 	{symADI7, "ADI7", [2]instfunc{(*CPU).adi, (*CPU).adi}},
-	{symADIC, "ADIC", [2]instfunc{(*CPU).adic, (*CPU).adic}},
+
 	{symADM, "ADM", [2]instfunc{(*CPU).adm, (*CPU).adm}},
-	{symADMC, "ADMC", [2]instfunc{(*CPU).admc, (*CPU).admc}},
+
 	{symADR, "ADR", [2]instfunc{(*CPU).adr, (*CPU).adr}},
-	{symADRC, "ADRC", [2]instfunc{(*CPU).adrc, (*CPU).adrc}},
+
 	{symAND, "AND", [2]instfunc{(*CPU).and, (*CPU).and}},
 	{symANI, "ANI", [2]instfunc{(*CPU).ani, (*CPU).ani}},
 	{symCALL, "CALL", [2]instfunc{(*CPU).call, (*CPU).call}},
 	{symCMP, "CMP", [2]instfunc{(*CPU).cmp, (*CPU).cmp}},
+	{symCPSR, "CPSR", [2]instfunc{(*CPU).cpsr, (*CPU).cpsr}},
 	{symDEC, "DEC", [2]instfunc{(*CPU).dec, (*CPU).dec}},
 	{symEX, "EX", [2]instfunc{(*CPU).ex, (*CPU).ex}},
 	{symHALT, "HALT", [2]instfunc{(*CPU).halt, (*CPU).halt}},
 	{symINC, "INC", [2]instfunc{(*CPU).inc, (*CPU).inc}},
+	{symLBR, "LBR", [2]instfunc{(*CPU).lbr, (*CPU).lbr}},
 	{symLBRC, "LBRC", [2]instfunc{(*CPU).lbrc, (*CPU).lbrc}},
+	{symLBRZ, "LBRZ", [2]instfunc{(*CPU).lbrz, (*CPU).lbrz}},
 	{symLBRQ, "LBRQ", [2]instfunc{(*CPU).lbrq, (*CPU).lbrq}},
 	{symLDI0, "LDI0", [2]instfunc{(*CPU).ldi, (*CPU).ldi}},
 	{symLDI1, "LDI1", [2]instfunc{(*CPU).ldi, (*CPU).ldi}},
@@ -188,6 +195,7 @@ var impl = []opcodeImpl{
 	{symSHLC, "SHLC", [2]instfunc{(*CPU).shlc, (*CPU).shlc}},
 	{symSHR, "SHR", [2]instfunc{(*CPU).shr, (*CPU).shr}},
 	{symSHRC, "SHRC", [2]instfunc{(*CPU).shrc, (*CPU).shrc}},
+	{symSPSR, "SPSR", [2]instfunc{(*CPU).spsr, (*CPU).spsr}},
 	{symSTI0, "STI0", [2]instfunc{(*CPU).sti, (*CPU).sti}},
 	{symSTI1, "STI1", [2]instfunc{(*CPU).sti, (*CPU).sti}},
 	{symSTI2, "STI2", [2]instfunc{(*CPU).sti, (*CPU).sti}},
@@ -197,11 +205,11 @@ var impl = []opcodeImpl{
 	{symSTI6, "STI6", [2]instfunc{(*CPU).sti, (*CPU).sti}},
 	{symSTI7, "STI7", [2]instfunc{(*CPU).sti, (*CPU).sti}},
 	{symSUB, "SUB", [2]instfunc{(*CPU).sub, (*CPU).sub}},
-	{symSUBC, "SUBC", [2]instfunc{(*CPU).subc, (*CPU).subc}},
+
 	{symSUBI, "SUBI", [2]instfunc{(*CPU).subi, (*CPU).subi}},
-	{symSUBIC, "SUBIC", [2]instfunc{(*CPU).subic, (*CPU).subic}},
+
 	{symSUBM, "SUBM", [2]instfunc{(*CPU).subm, (*CPU).subm}},
-	{symSUBMC, "SUBMC", [2]instfunc{(*CPU).submc, (*CPU).submc}},
+
 	{symXOR, "XOR", [2]instfunc{(*CPU).xor, (*CPU).xor}},
 	{symXRI, "XRI", [2]instfunc{(*CPU).xri, (*CPU).xri}},
 }
@@ -239,62 +247,40 @@ type opcodeData struct {
 
 // All valid (opcode, mode) pairs
 var data = []opcodeData{
-	{symADI0, IMM, 0x88, 2, 1, 0, false},
-	{symADI1, IMM, 0x89, 2, 1, 0, false},
-	{symADI2, IMM, 0x8a, 2, 1, 0, false},
-	{symADI3, IMM, 0x8b, 2, 1, 0, false},
-	{symADI4, IMM, 0x8c, 2, 1, 0, false},
-	{symADI5, IMM, 0x8d, 2, 1, 0, false},
-	{symADI6, IMM, 0x8e, 2, 1, 0, false},
-	{symADI7, IMM, 0x8f, 2, 1, 0, false},
+	{symADI0, IMM, 0x88, 2, 3, 0, false},
+	{symADI1, IMM, 0x89, 2, 3, 0, false},
+	{symADI2, IMM, 0x8a, 2, 3, 0, false},
+	{symADI3, IMM, 0x8b, 2, 3, 0, false},
+	{symADI4, IMM, 0x8c, 2, 3, 0, false},
+	{symADI5, IMM, 0x8d, 2, 3, 0, false},
+	{symADI6, IMM, 0x8e, 2, 3, 0, false},
+	{symADI7, IMM, 0x8f, 2, 3, 0, false},
 
-	{symADIC, IMM, 0xa0, 2, 1, 0, false},
-	{symADIC, IMM, 0xa1, 2, 1, 0, false},
-	{symADIC, IMM, 0xa2, 2, 1, 0, false},
-	{symADIC, IMM, 0xa3, 2, 1, 0, false},
-	{symADIC, IMM, 0xa4, 2, 1, 0, false},
-	{symADIC, IMM, 0xa5, 2, 1, 0, false},
-	{symADIC, IMM, 0xa6, 2, 1, 0, false},
-	{symADIC, IMM, 0xa7, 2, 1, 0, false},
+	{symADM, ABS, 0x90, 3, 4, 0, false},
+	{symADM, ABS, 0x91, 3, 4, 0, false},
+	{symADM, ABS, 0x92, 3, 4, 0, false},
+	{symADM, ABS, 0x93, 3, 4, 0, false},
+	{symADM, ABS, 0x94, 3, 4, 0, false},
+	{symADM, ABS, 0x95, 3, 4, 0, false},
+	{symADM, ABS, 0x96, 3, 4, 0, false},
+	{symADM, ABS, 0x97, 3, 4, 0, false},
 
-	{symADM, ABS, 0x90, 3, 1, 0, false},
-	{symADM, ABS, 0x91, 3, 1, 0, false},
-	{symADM, ABS, 0x92, 3, 1, 0, false},
-	{symADM, ABS, 0x93, 3, 1, 0, false},
-	{symADM, ABS, 0x94, 3, 1, 0, false},
-	{symADM, ABS, 0x95, 3, 1, 0, false},
-	{symADM, ABS, 0x96, 3, 1, 0, false},
-	{symADM, ABS, 0x97, 3, 1, 0, false},
+	{symADR, IMM, 0x80, 2, 3, 0, false},
 
-	{symADMC, ABS, 0xa8, 3, 1, 0, false},
-	{symADMC, ABS, 0xa9, 3, 1, 0, false},
-	{symADMC, ABS, 0xaa, 3, 1, 0, false},
-	{symADMC, ABS, 0xab, 3, 1, 0, false},
-	{symADMC, ABS, 0xac, 3, 1, 0, false},
-	{symADMC, ABS, 0xad, 3, 1, 0, false},
-	{symADMC, ABS, 0xae, 3, 1, 0, false},
-	{symADMC, ABS, 0xaf, 3, 1, 0, false},
+	{symAND, IMM, 0x86, 2, 3, 0, false},
 
-	{symADR, IMM, 0x80, 2, 1, 0, false},
+	{symANI, IMM, 0x50, 2, 3, 0, false},
+	{symANI, IMM, 0x51, 2, 3, 0, false},
+	{symANI, IMM, 0x52, 2, 3, 0, false},
+	{symANI, IMM, 0x53, 2, 3, 0, false},
+	{symANI, IMM, 0x54, 2, 3, 0, false},
+	{symANI, IMM, 0x55, 2, 3, 0, false},
+	{symANI, IMM, 0x56, 2, 3, 0, false},
+	{symANI, IMM, 0x57, 2, 3, 0, false},
 
-	{symADRC, IMM, 0x81, 2, 1, 0, false},
+	{symCALL, ABS, 0x02, 3, 6, 0, false},
 
-	{symAND, IMM, 0x86, 2, 1, 0, false},
-
-	{symANI, IMM, 0x50, 2, 1, 0, false},
-	{symANI, IMM, 0x51, 2, 1, 0, false},
-	{symANI, IMM, 0x52, 2, 1, 0, false},
-	{symANI, IMM, 0x53, 2, 1, 0, false},
-	{symANI, IMM, 0x54, 2, 1, 0, false},
-	{symANI, IMM, 0x55, 2, 1, 0, false},
-	{symANI, IMM, 0x56, 2, 1, 0, false},
-	{symANI, IMM, 0x57, 2, 1, 0, false},
-
-	{symCALL, ABS, 0x02, 3, 1, 0, false},
-
-	{symRET, IMP, 0x03, 1, 1, 0, false},
-
-	{symCMP, IMM, 0x85, 2, 1, 0, false},
+	{symCMP, IMM, 0x85, 2, 3, 0, false},
 
 	{symDEC, IMP, 0x30, 1, 1, 0, false},
 	{symDEC, IMP, 0x31, 1, 1, 0, false},
@@ -305,7 +291,7 @@ var data = []opcodeData{
 	{symDEC, IMP, 0x36, 1, 1, 0, false},
 	{symDEC, IMP, 0x37, 1, 1, 0, false},
 
-	{symEX, IMM, 0x84, 2, 1, 0, false},
+	{symEX, IMM, 0x84, 2, 3, 0, false},
 
 	{symHALT, IMP, 0x01, 1, 1, 0, false},
 
@@ -318,16 +304,20 @@ var data = []opcodeData{
 	{symINC, IMP, 0x2e, 1, 1, 0, false},
 	{symINC, IMP, 0x2f, 1, 1, 0, false},
 
-	{symLBRC, ABS, 0x18, 3, 1, 0, false},
+	{symLBR, ABS, 0x18, 3, 4, 0, false},
 
-	{symLBRQ, ABS, 0x08, 3, 1, 0, false},
-	{symLBRQ, ABS, 0x09, 3, 1, 0, false},
-	{symLBRQ, ABS, 0x0a, 3, 1, 0, false},
-	{symLBRQ, ABS, 0x0b, 3, 1, 0, false},
-	{symLBRQ, ABS, 0x0c, 3, 1, 0, false},
-	{symLBRQ, ABS, 0x0d, 3, 1, 0, false},
-	{symLBRQ, ABS, 0x0e, 3, 1, 0, false},
-	{symLBRQ, ABS, 0x0f, 3, 1, 0, false},
+	{symLBRC, ABS, 0x1a, 3, 4, 0, false},
+
+	{symLBRQ, ABS, 0xb0, 3, 4, 0, false},
+	{symLBRQ, ABS, 0xb1, 3, 4, 0, false},
+	{symLBRQ, ABS, 0xb2, 3, 4, 0, false},
+	{symLBRQ, ABS, 0xb3, 3, 4, 0, false},
+	{symLBRQ, ABS, 0xb4, 3, 4, 0, false},
+	{symLBRQ, ABS, 0xb5, 3, 4, 0, false},
+	{symLBRQ, ABS, 0xb6, 3, 4, 0, false},
+	{symLBRQ, ABS, 0xb7, 3, 4, 0, false},
+
+	{symLBRZ, ABS, 0x1b, 3, 4, 0, false},
 
 	{symLDI0, IMM, 0xe0, 2, 2, 0, false},
 	{symLDI1, IMM, 0xe1, 2, 2, 0, false},
@@ -338,45 +328,45 @@ var data = []opcodeData{
 	{symLDI6, IMM, 0xe6, 2, 2, 0, false},
 	{symLDI7, IMM, 0xe7, 2, 2, 0, false},
 
-	{symLDM, ABS, 0xf0, 3, 1, 0, false},
-	{symLDM, ABS, 0xf1, 3, 1, 0, false},
-	{symLDM, ABS, 0xf2, 3, 1, 0, false},
-	{symLDM, ABS, 0xf3, 3, 1, 0, false},
-	{symLDM, ABS, 0xf4, 3, 1, 0, false},
-	{symLDM, ABS, 0xf5, 3, 1, 0, false},
-	{symLDM, ABS, 0xf6, 3, 1, 0, false},
-	{symLDM, ABS, 0xf7, 3, 1, 0, false},
+	{symLDM, ABS, 0xf0, 3, 4, 0, false},
+	{symLDM, ABS, 0xf1, 3, 4, 0, false},
+	{symLDM, ABS, 0xf2, 3, 4, 0, false},
+	{symLDM, ABS, 0xf3, 3, 4, 0, false},
+	{symLDM, ABS, 0xf4, 3, 4, 0, false},
+	{symLDM, ABS, 0xf5, 3, 4, 0, false},
+	{symLDM, ABS, 0xf6, 3, 4, 0, false},
+	{symLDM, ABS, 0xf7, 3, 4, 0, false},
 
 	{symNOP, IMP, 0x00, 1, 1, 0, false},
 
-	{symOR, IMM, 0x87, 2, 1, 0, false},
+	{symOR, IMM, 0x87, 2, 2, 0, false},
 
-	{symORI, IMM, 0x58, 2, 1, 0, false},
-	{symORI, IMM, 0x59, 2, 1, 0, false},
-	{symORI, IMM, 0x5a, 2, 1, 0, false},
-	{symORI, IMM, 0x5b, 2, 1, 0, false},
-	{symORI, IMM, 0x5c, 2, 1, 0, false},
-	{symORI, IMM, 0x5d, 2, 1, 0, false},
-	{symORI, IMM, 0x5e, 2, 1, 0, false},
-	{symORI, IMM, 0x5f, 2, 1, 0, false},
+	{symORI, IMM, 0x58, 2, 2, 0, false},
+	{symORI, IMM, 0x59, 2, 2, 0, false},
+	{symORI, IMM, 0x5a, 2, 2, 0, false},
+	{symORI, IMM, 0x5b, 2, 2, 0, false},
+	{symORI, IMM, 0x5c, 2, 2, 0, false},
+	{symORI, IMM, 0x5d, 2, 2, 0, false},
+	{symORI, IMM, 0x5e, 2, 2, 0, false},
+	{symORI, IMM, 0x5f, 2, 2, 0, false},
 
-	{symPOP0, IMP, 0x48, 1, 1, 0, false},
-	{symPOP1, IMP, 0x49, 1, 1, 0, false},
-	{symPOP2, IMP, 0x4a, 1, 1, 0, false},
-	{symPOP3, IMP, 0x4b, 1, 1, 0, false},
-	{symPOP4, IMP, 0x4c, 1, 1, 0, false},
-	{symPOP5, IMP, 0x4d, 1, 1, 0, false},
-	{symPOP6, IMP, 0x4e, 1, 1, 0, false},
-	{symPOP7, IMP, 0x4f, 1, 1, 0, false},
+	{symPOP0, IMP, 0x48, 1, 2, 0, false},
+	{symPOP1, IMP, 0x49, 1, 2, 0, false},
+	{symPOP2, IMP, 0x4a, 1, 2, 0, false},
+	{symPOP3, IMP, 0x4b, 1, 2, 0, false},
+	{symPOP4, IMP, 0x4c, 1, 2, 0, false},
+	{symPOP5, IMP, 0x4d, 1, 2, 0, false},
+	{symPOP6, IMP, 0x4e, 1, 2, 0, false},
+	{symPOP7, IMP, 0x4f, 1, 2, 0, false},
 
-	{symPUSH0, IMP, 0x40, 1, 1, 0, false},
-	{symPUSH1, IMP, 0x41, 1, 1, 0, false},
-	{symPUSH2, IMP, 0x42, 1, 1, 0, false},
-	{symPUSH3, IMP, 0x43, 1, 1, 0, false},
-	{symPUSH4, IMP, 0x44, 1, 1, 0, false},
-	{symPUSH5, IMP, 0x45, 1, 1, 0, false},
-	{symPUSH6, IMP, 0x46, 1, 1, 0, false},
-	{symPUSH7, IMP, 0x47, 1, 1, 0, false},
+	{symPUSH0, IMP, 0x40, 1, 2, 0, false},
+	{symPUSH1, IMP, 0x41, 1, 2, 0, false},
+	{symPUSH2, IMP, 0x42, 1, 2, 0, false},
+	{symPUSH3, IMP, 0x43, 1, 2, 0, false},
+	{symPUSH4, IMP, 0x44, 1, 2, 0, false},
+	{symPUSH5, IMP, 0x45, 1, 2, 0, false},
+	{symPUSH6, IMP, 0x46, 1, 2, 0, false},
+	{symPUSH7, IMP, 0x47, 1, 2, 0, false},
 
 	{symRESETQ0, IMP, 0x10, 1, 1, 0, false},
 	{symRESETQ1, IMP, 0x11, 1, 1, 0, false},
@@ -387,7 +377,7 @@ var data = []opcodeData{
 	{symRESETQ6, IMP, 0x16, 1, 1, 0, false},
 	{symRESETQ7, IMP, 0x17, 1, 1, 0, false},
 
-	{symRET, IMP, 0x03, 1, 1, 0, false},
+	{symRET, IMP, 0x03, 1, 1, 6, false},
 
 	{symSETQ0, IMP, 0x38, 1, 1, 0, false},
 	{symSETQ1, IMP, 0x39, 1, 1, 0, false},
@@ -434,65 +424,48 @@ var data = []opcodeData{
 	{symSHRC, IMP, 0x76, 1, 1, 0, false},
 	{symSHRC, IMP, 0x77, 1, 1, 0, false},
 
-	{symSTI0, ABS, 0xe8, 3, 3, 0, false},
-	{symSTI1, ABS, 0xe9, 3, 3, 0, false},
-	{symSTI2, ABS, 0xea, 3, 3, 0, false},
-	{symSTI3, ABS, 0xeb, 3, 3, 0, false},
-	{symSTI4, ABS, 0xec, 3, 3, 0, false},
-	{symSTI5, ABS, 0xed, 3, 3, 0, false},
-	{symSTI6, ABS, 0xee, 3, 3, 0, false},
-	{symSTI7, ABS, 0xef, 3, 3, 0, false},
+	{symCPSR, IMM, 0x05, 2, 2, 0, false},
+	{symSPSR, IMM, 0x04, 2, 2, 0, false},
 
-	{symSUB, IMM, 0x82, 2, 1, 0, false},
+	{symSTI0, ABS, 0xe8, 3, 4, 0, false},
+	{symSTI1, ABS, 0xe9, 3, 4, 0, false},
+	{symSTI2, ABS, 0xea, 3, 4, 0, false},
+	{symSTI3, ABS, 0xeb, 3, 4, 0, false},
+	{symSTI4, ABS, 0xec, 3, 4, 0, false},
+	{symSTI5, ABS, 0xed, 3, 4, 0, false},
+	{symSTI6, ABS, 0xee, 3, 4, 0, false},
+	{symSTI7, ABS, 0xef, 3, 4, 0, false},
 
-	{symSUBC, IMM, 0x83, 2, 1, 0, false},
+	{symSUB, IMM, 0x82, 2, 2, 0, false},
 
-	{symSUBI, IMM, 0xb8, 2, 1, 0, false},
-	{symSUBI, IMM, 0xb9, 2, 1, 0, false},
-	{symSUBI, IMM, 0xba, 2, 1, 0, false},
-	{symSUBI, IMM, 0xbb, 2, 1, 0, false},
-	{symSUBI, IMM, 0xbc, 2, 1, 0, false},
-	{symSUBI, IMM, 0xbd, 2, 1, 0, false},
-	{symSUBI, IMM, 0xbe, 2, 1, 0, false},
-	{symSUBI, IMM, 0xbf, 2, 1, 0, false},
+	{symSUBI, IMM, 0xb8, 2, 2, 0, false},
+	{symSUBI, IMM, 0xb9, 2, 2, 0, false},
+	{symSUBI, IMM, 0xba, 2, 2, 0, false},
+	{symSUBI, IMM, 0xbb, 2, 2, 0, false},
+	{symSUBI, IMM, 0xbc, 2, 2, 0, false},
+	{symSUBI, IMM, 0xbd, 2, 2, 0, false},
+	{symSUBI, IMM, 0xbe, 2, 2, 0, false},
+	{symSUBI, IMM, 0xbf, 2, 2, 0, false},
 
-	{symSUBIC, IMM, 0xd0, 2, 1, 0, false},
-	{symSUBIC, IMM, 0xd1, 2, 1, 0, false},
-	{symSUBIC, IMM, 0xd2, 2, 1, 0, false},
-	{symSUBIC, IMM, 0xd3, 2, 1, 0, false},
-	{symSUBIC, IMM, 0xd4, 2, 1, 0, false},
-	{symSUBIC, IMM, 0xd5, 2, 1, 0, false},
-	{symSUBIC, IMM, 0xd6, 2, 1, 0, false},
-	{symSUBIC, IMM, 0xd7, 2, 1, 0, false},
+	{symSUBM, ABS, 0xc0, 3, 4, 0, false},
+	{symSUBM, ABS, 0xc1, 3, 4, 0, false},
+	{symSUBM, ABS, 0xc2, 3, 4, 0, false},
+	{symSUBM, ABS, 0xc3, 3, 4, 0, false},
+	{symSUBM, ABS, 0xc4, 3, 4, 0, false},
+	{symSUBM, ABS, 0xc5, 3, 4, 0, false},
+	{symSUBM, ABS, 0xc6, 3, 4, 0, false},
+	{symSUBM, ABS, 0xc7, 3, 4, 0, false},
 
-	{symSUBM, ABS, 0xc0, 3, 1, 0, false},
-	{symSUBM, ABS, 0xc1, 3, 1, 0, false},
-	{symSUBM, ABS, 0xc2, 3, 1, 0, false},
-	{symSUBM, ABS, 0xc3, 3, 1, 0, false},
-	{symSUBM, ABS, 0xc4, 3, 1, 0, false},
-	{symSUBM, ABS, 0xc5, 3, 1, 0, false},
-	{symSUBM, ABS, 0xc6, 3, 1, 0, false},
-	{symSUBM, ABS, 0xc7, 3, 1, 0, false},
+	{symXOR, IMM, 0x19, 2, 2, 0, false},
 
-	{symSUBMC, ABS, 0xd8, 3, 1, 0, false},
-	{symSUBMC, ABS, 0xd9, 3, 1, 0, false},
-	{symSUBMC, ABS, 0xda, 3, 1, 0, false},
-	{symSUBMC, ABS, 0xdb, 3, 1, 0, false},
-	{symSUBMC, ABS, 0xdc, 3, 1, 0, false},
-	{symSUBMC, ABS, 0xdd, 3, 1, 0, false},
-	{symSUBMC, ABS, 0xde, 3, 1, 0, false},
-	{symSUBMC, ABS, 0xdf, 3, 1, 0, false},
-
-	{symXOR, IMM, 0x19, 2, 1, 0, false},
-
-	{symXRI, IMM, 0x60, 2, 1, 0, false},
-	{symXRI, IMM, 0x61, 2, 1, 0, false},
-	{symXRI, IMM, 0x62, 2, 1, 0, false},
-	{symXRI, IMM, 0x63, 2, 1, 0, false},
-	{symXRI, IMM, 0x64, 2, 1, 0, false},
-	{symXRI, IMM, 0x65, 2, 1, 0, false},
-	{symXRI, IMM, 0x66, 2, 1, 0, false},
-	{symXRI, IMM, 0x67, 2, 1, 0, false},
+	{symXRI, IMM, 0x60, 2, 2, 0, false},
+	{symXRI, IMM, 0x61, 2, 2, 0, false},
+	{symXRI, IMM, 0x62, 2, 2, 0, false},
+	{symXRI, IMM, 0x63, 2, 2, 0, false},
+	{symXRI, IMM, 0x64, 2, 2, 0, false},
+	{symXRI, IMM, 0x65, 2, 2, 0, false},
+	{symXRI, IMM, 0x66, 2, 2, 0, false},
+	{symXRI, IMM, 0x67, 2, 2, 0, false},
 }
 
 // Unused opcodes
@@ -504,16 +477,22 @@ type unused struct {
 }
 
 var unusedData = []unused{
-	{0x04, IMP, 1, 1},
-	{0x05, IMP, 1, 1},
 	{0x06, IMP, 1, 1},
 	{0x07, IMP, 1, 1},
-	{0x1a, IMP, 1, 1},
-	{0x1b, IMP, 1, 1},
+	{0x08, IMP, 1, 1},
+	{0x09, IMP, 1, 1},
+	{0x0a, IMP, 1, 1},
+	{0x0b, IMP, 1, 1},
+	{0x0c, IMP, 1, 1},
+	{0x0d, IMP, 1, 1},
+	{0x0e, IMP, 1, 1},
+	{0x0f, IMP, 1, 1},
 	{0x1c, IMP, 1, 1},
 	{0x1d, IMP, 1, 1},
 	{0x1e, IMP, 1, 1},
 	{0x1f, IMP, 1, 1},
+	{0x81, IMP, 1, 1},
+	{0x83, IMP, 1, 1},
 	{0x98, IMP, 1, 1},
 	{0x99, IMP, 1, 1},
 	{0x9a, IMP, 1, 1},
@@ -522,14 +501,22 @@ var unusedData = []unused{
 	{0x9d, IMP, 1, 1},
 	{0x9e, IMP, 1, 1},
 	{0x9f, IMP, 1, 1},
-	{0xb0, IMP, 1, 1},
-	{0xb1, IMP, 1, 1},
-	{0xb2, IMP, 1, 1},
-	{0xb3, IMP, 1, 1},
-	{0xb4, IMP, 1, 1},
-	{0xb5, IMP, 1, 1},
-	{0xb6, IMP, 1, 1},
-	{0xb7, IMP, 1, 1},
+	{0xa0, IMP, 1, 1},
+	{0xa1, IMP, 1, 1},
+	{0xa2, IMP, 1, 1},
+	{0xa3, IMP, 1, 1},
+	{0xa4, IMP, 1, 1},
+	{0xa5, IMP, 1, 1},
+	{0xa6, IMP, 1, 1},
+	{0xa7, IMP, 1, 1},
+	{0xa8, IMP, 1, 1},
+	{0xa9, IMP, 1, 1},
+	{0xaa, IMP, 1, 1},
+	{0xab, IMP, 1, 1},
+	{0xac, IMP, 1, 1},
+	{0xad, IMP, 1, 1},
+	{0xae, IMP, 1, 1},
+	{0xaf, IMP, 1, 1},
 	{0xc8, IMP, 1, 1},
 	{0xc9, IMP, 1, 1},
 	{0xca, IMP, 1, 1},
@@ -538,6 +525,22 @@ var unusedData = []unused{
 	{0xcd, IMP, 1, 1},
 	{0xce, IMP, 1, 1},
 	{0xcf, IMP, 1, 1},
+	{0xd0, IMP, 1, 1},
+	{0xd1, IMP, 1, 1},
+	{0xd2, IMP, 1, 1},
+	{0xd3, IMP, 1, 1},
+	{0xd4, IMP, 1, 1},
+	{0xd5, IMP, 1, 1},
+	{0xd6, IMP, 1, 1},
+	{0xd7, IMP, 1, 1},
+	{0xd8, IMP, 1, 1},
+	{0xd9, IMP, 1, 1},
+	{0xda, IMP, 1, 1},
+	{0xdb, IMP, 1, 1},
+	{0xdc, IMP, 1, 1},
+	{0xdd, IMP, 1, 1},
+	{0xde, IMP, 1, 1},
+	{0xdf, IMP, 1, 1},
 	{0xf8, IMP, 1, 1},
 	{0xf9, IMP, 1, 1},
 	{0xfa, IMP, 1, 1},
@@ -652,7 +655,7 @@ func newInstructionSet(arch Architecture) *InstructionSet {
 	}
 
 	for i := 0; i < 256; i++ {
-		//log.Printf("set.instructions[i] = %s; opcode = x%02x", set.instructions[i].Name, set.instructions[i].Opcode)
+		//fmt.Printf("set.instructions[i] = %s; opcode = x%02x\n", set.instructions[i].Name, set.instructions[i].Opcode)
 		if set.instructions[i].Name == "" {
 			panic("missing instruction")
 		}

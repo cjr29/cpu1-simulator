@@ -21,7 +21,7 @@ type Registers struct {
 	Sign             bool    // PS: Sign bit
 }
 
-// Bits assigned to the processor status byte
+// Bits assigned to the processor status byte (PSR)
 const (
 	CarryBit            = 1 << 0
 	ZeroBit             = 1 << 1
